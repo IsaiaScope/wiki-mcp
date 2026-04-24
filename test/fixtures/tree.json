@@ -1,0 +1,19 @@
+{
+  "sha": "abc123sha",
+  "url": "https://api.github.com/repos/fake/wiki/git/trees/abc123sha",
+  "truncated": false,
+  "tree": [
+    { "path": "CLAUDE.md", "type": "blob", "sha": "s0", "mode": "100644", "size": 100 },
+    { "path": "docs/llm-wiki.md", "type": "blob", "sha": "s1", "mode": "100644", "size": 200 },
+    { "path": "personal/CLAUDE.md", "type": "blob", "sha": "s2", "mode": "100644", "size": 150 },
+    { "path": "personal/index.md", "type": "blob", "sha": "s3", "mode": "100644", "size": 80 },
+    { "path": "personal/log.md", "type": "blob", "sha": "s4", "mode": "100644", "size": 60 },
+    { "path": "personal/wiki/entities/Foo.md", "type": "blob", "sha": "s5", "mode": "100644", "size": 120 },
+    { "path": "personal/wiki/concepts/bar-baz.md", "type": "blob", "sha": "s6", "mode": "100644", "size": 110 },
+    { "path": "personal/wiki/sources/2026-01-01-sample.md", "type": "blob", "sha": "s7", "mode": "100644", "size": 140 },
+    { "path": "personal/raw/note.pdf", "type": "blob", "sha": "s8", "mode": "100644", "size": 5000 },
+    { "path": "work/index.md", "type": "blob", "sha": "s9", "mode": "100644", "size": 70 },
+    { "path": "work/log.md", "type": "blob", "sha": "sA", "mode": "100644", "size": 50 },
+    { "path": "work/wiki/entities/Qux.md", "type": "blob", "sha": "sB", "mode": "100644", "size": 100 }
+  ]
+}
