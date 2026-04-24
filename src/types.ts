@@ -48,3 +48,16 @@ export type GithubTreeEntry = {
   sha: string;
   size?: number;
 };
+
+export type PrimeVocabMode = "structural" | "full" | "off";
+
+export type ToolName = "wiki_context" | "wiki_search" | "wiki_fetch" | "wiki_list";
+
+export type PrimeBundle = {
+  instructions: string;
+  toolDescriptions: Record<ToolName, string>;
+  overviewIndex: string;
+  overviewByDomain: Map<string, string>;
+  vocabMode: PrimeVocabMode;
+  sha: string;
+};
