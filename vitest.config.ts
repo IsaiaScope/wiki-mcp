@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    exclude: ["**/node_modules/**", "**/dist/**", "**/._*"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
@@ -13,8 +14,8 @@ export default defineConfig({
         lines: 85,
         functions: 85,
         branches: 75,
-        statements: 85
-      }
-    }
-  }
+        statements: 85,
+      },
+    },
+  },
 });

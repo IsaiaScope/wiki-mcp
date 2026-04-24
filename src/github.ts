@@ -27,8 +27,8 @@ export class GithubClient {
         Authorization: `Bearer ${this.env.GITHUB_TOKEN}`,
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "wiki-mcp"
-      }
+        "User-Agent": "wiki-mcp",
+      },
     });
     if (!res.ok) {
       throw new Error(`GitHub tree fetch failed: ${res.status} ${res.statusText}`);
@@ -42,14 +42,14 @@ export class GithubClient {
     const [owner, repo] = this.env.GITHUB_REPO.split("/");
     const encoded = path
       .split("/")
-      .map(seg => encodeURIComponent(seg))
+      .map((seg) => encodeURIComponent(seg))
       .join("/");
     return `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/${encoded}`;
   }
 
   async fetchBody(sha: string, path: string): Promise<string> {
     const res = await fetch(this.rawUrl(sha, path), {
-      headers: { "User-Agent": "wiki-mcp" }
+      headers: { "User-Agent": "wiki-mcp" },
     });
     if (!res.ok) {
       throw new Error(`Raw fetch failed for ${path}: ${res.status}`);

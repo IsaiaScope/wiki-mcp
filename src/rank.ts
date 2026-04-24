@@ -1,14 +1,109 @@
 const STOPWORDS_EN = new Set([
-  "the","a","an","is","are","was","were","be","been","being",
-  "and","or","but","if","then","of","in","on","at","for","to","from","by","with",
-  "this","that","these","those","it","its","as","so","not","no","yes","do","does","did",
-  "has","have","had","i","me","my","you","your","he","she","we","us","our","they","them","their"
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "and",
+  "or",
+  "but",
+  "if",
+  "then",
+  "of",
+  "in",
+  "on",
+  "at",
+  "for",
+  "to",
+  "from",
+  "by",
+  "with",
+  "this",
+  "that",
+  "these",
+  "those",
+  "it",
+  "its",
+  "as",
+  "so",
+  "not",
+  "no",
+  "yes",
+  "do",
+  "does",
+  "did",
+  "has",
+  "have",
+  "had",
+  "i",
+  "me",
+  "my",
+  "you",
+  "your",
+  "he",
+  "she",
+  "we",
+  "us",
+  "our",
+  "they",
+  "them",
+  "their",
 ]);
 
 const STOPWORDS_IT = new Set([
-  "il","lo","la","i","gli","le","un","una","uno","di","a","da","in","con","su","per","tra","fra",
-  "e","o","ma","se","che","chi","cui","non","si","no","sono","era","ero","siamo","siete","essere",
-  "avere","ho","hai","ha","abbiamo","avete","hanno","come","quando","dove","perche","ecco","questa","questo"
+  "il",
+  "lo",
+  "la",
+  "i",
+  "gli",
+  "le",
+  "un",
+  "una",
+  "uno",
+  "di",
+  "a",
+  "da",
+  "in",
+  "con",
+  "su",
+  "per",
+  "tra",
+  "fra",
+  "e",
+  "o",
+  "ma",
+  "se",
+  "che",
+  "chi",
+  "cui",
+  "non",
+  "si",
+  "no",
+  "sono",
+  "era",
+  "ero",
+  "siamo",
+  "siete",
+  "essere",
+  "avere",
+  "ho",
+  "hai",
+  "ha",
+  "abbiamo",
+  "avete",
+  "hanno",
+  "come",
+  "quando",
+  "dove",
+  "perche",
+  "ecco",
+  "questa",
+  "questo",
 ]);
 
 const STOPWORDS = new Set<string>([...STOPWORDS_EN, ...STOPWORDS_IT]);
@@ -46,19 +141,15 @@ const B = 0.75;
 const PHRASE_BONUS = 5;
 
 function extractQuotedPhrases(query: string): string[] {
-  const out: string[] = [];
-  const re = /"([^"]+)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(query)) !== null) out.push(m[1].toLowerCase());
-  return out;
+  return Array.from(query.matchAll(/"([^"]+)"/g), (m) => m[1].toLowerCase());
 }
 
 export function rankDocs(query: string, docs: RankDoc[]): RankHit[] {
-  const qTokens = tokenize(query).filter(t => !t.includes(" "));
+  const qTokens = tokenize(query).filter((t) => !t.includes(" "));
   const phrases = extractQuotedPhrases(query);
   if (qTokens.length === 0 && phrases.length === 0) return [];
 
-  const docTokenLists = docs.map(d => {
+  const docTokenLists = docs.map((d) => {
     const tokens = tokenize(d.text);
     if (d.weightedTerms) {
       for (const t of d.weightedTerms) {

@@ -12,8 +12,11 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
   server.registerResource(
     "schema",
     "wiki://schema",
-    { description: "Concatenated root + domain CLAUDE.md + docs/llm-wiki.md", mimeType: "text/markdown" },
-    async () => readSchema(ctx)
+    {
+      description: "Concatenated root + domain CLAUDE.md + docs/llm-wiki.md",
+      mimeType: "text/markdown",
+    },
+    async () => readSchema(ctx),
   );
   table.set("wiki://schema", () => readSchema(ctx));
 
@@ -21,7 +24,7 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
     "index-all",
     "wiki://index/all",
     { description: "All domain indexes concatenated", mimeType: "text/markdown" },
-    async () => readIndexAll(ctx)
+    async () => readIndexAll(ctx),
   );
   table.set("wiki://index/all", () => readIndexAll(ctx));
 
@@ -29,7 +32,7 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
     "log-recent",
     "wiki://log/recent",
     { description: "Last 50 log entries across all domains", mimeType: "text/markdown" },
-    async () => readLogRecent(ctx)
+    async () => readLogRecent(ctx),
   );
   table.set("wiki://log/recent", () => readLogRecent(ctx));
 
@@ -40,7 +43,7 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
     async (uri, variables) => {
       const { domain, type, slug } = variables as { domain: string; type: string; slug: string };
       return readPage(ctx, String(domain), String(type), String(slug), uri.toString());
-    }
+    },
   );
 
   return {
@@ -49,9 +52,16 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
       const direct = table.get(uri);
       if (direct) return direct();
       const m = uri.match(/^wiki:\/\/page\/([^/]+)\/([^/]+)\/(.+)$/);
-      if (m) return readPage(ctx, decodeURIComponent(m[1]), decodeURIComponent(m[2]), decodeURIComponent(m[3]), uri);
+      if (m)
+        return readPage(
+          ctx,
+          decodeURIComponent(m[1]),
+          decodeURIComponent(m[2]),
+          decodeURIComponent(m[3]),
+          uri,
+        );
       throw new Error(`Unknown resource URI: ${uri}`);
-    }
+    },
   };
 }
 
@@ -60,7 +70,7 @@ async function readSchema(ctx: ResourceContext): Promise<ReadResult> {
   const parts: string[] = [];
   for (const p of snap.schemaPaths) {
     const body = await safeFetch(ctx, snap.sha, p);
-    if (body) parts.push(`--- ${p} ---\n` + body);
+    if (body) parts.push(`--- ${p} ---\n${body}`);
   }
   return { contents: [{ uri: "wiki://schema", text: parts.join("\n\n") }] };
 }
@@ -88,13 +98,17 @@ async function readLogRecent(ctx: ResourceContext): Promise<ReadResult> {
   return { contents: [{ uri: "wiki://log/recent", text: recent }] };
 }
 
-async function readPage(ctx: ResourceContext, domain: string, type: string, slug: string, uri: string): Promise<ReadResult> {
+async function readPage(
+  ctx: ResourceContext,
+  domain: string,
+  type: string,
+  slug: string,
+  uri: string,
+): Promise<ReadResult> {
   const snap = await ctx.getSnapshot();
   const slugWithExt = slug.endsWith(".md") ? slug : `${slug}.md`;
   const target = `${domain}/wiki/${type}/${slugWithExt}`;
-  const body = snap.allPaths.includes(target)
-    ? await safeFetch(ctx, snap.sha, target)
-    : "";
+  const body = snap.allPaths.includes(target) ? await safeFetch(ctx, snap.sha, target) : "";
   return { contents: [{ uri, text: body }] };
 }
 

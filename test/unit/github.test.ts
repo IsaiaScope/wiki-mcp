@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GithubClient } from "../../src/github";
 import { loadFixtureTree, makeEnv } from "../helpers";
 
@@ -11,9 +11,11 @@ describe("GithubClient", () => {
   });
 
   it("fetches tree recursively with bearer header", async () => {
-    fetchSpy.mockResolvedValue(new Response(JSON.stringify(loadFixtureTree()), {
-      headers: { "content-type": "application/json" }
-    }));
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(loadFixtureTree()), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
 
     const client = new GithubClient(makeEnv());
     const tree = await client.fetchTree();
@@ -30,7 +32,9 @@ describe("GithubClient", () => {
   it("builds raw URL pinned by SHA", () => {
     const client = new GithubClient(makeEnv());
     const url = client.rawUrl("abc123sha", "personal/wiki/entities/Foo.md");
-    expect(url).toBe("https://raw.githubusercontent.com/fake/wiki/abc123sha/personal/wiki/entities/Foo.md");
+    expect(url).toBe(
+      "https://raw.githubusercontent.com/fake/wiki/abc123sha/personal/wiki/entities/Foo.md",
+    );
   });
 
   it("encodes spaces in path for raw URL", () => {

@@ -24,6 +24,6 @@ function constantTimeEqual(a: string, b: string): boolean {
 export function unauthorized(): Response {
   return new Response("Unauthorized", {
     status: 401,
-    headers: { "WWW-Authenticate": "Bearer" }
+    headers: { "WWW-Authenticate": "Bearer" },
   });
 }

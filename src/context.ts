@@ -1,10 +1,10 @@
-import type { Env } from "./env";
-import type { Snapshot, Bundle, Hit } from "./types";
-import { GithubClient } from "./github";
-import { parseFrontmatter } from "./frontmatter";
-import { rankDocs, type RankDoc } from "./rank";
-import { extractLinks, resolveLink } from "./wikilinks";
 import { estimateTokens, truncateAtHeading } from "./budget";
+import type { Env } from "./env";
+import { parseFrontmatter } from "./frontmatter";
+import type { GithubClient } from "./github";
+import { type RankDoc, rankDocs } from "./rank";
+import type { Bundle, Hit, Snapshot } from "./types";
+import { extractLinks, resolveLink } from "./wikilinks";
 
 export type ContextInput = {
   question: string;
@@ -21,28 +21,27 @@ export async function buildContext(
   input: ContextInput,
   snap: Snapshot,
   client: GithubClient,
-  env: Env
+  _env: Env,
 ): Promise<Bundle> {
   const candidatePaths = collectCandidatePaths(snap, input.domain);
 
-  const metadataDocs: RankDoc[] = candidatePaths.map(p => ({
+  const metadataDocs: RankDoc[] = candidatePaths.map((p) => ({
     id: p,
     text: pathToText(p),
-    weightedTerms: [basename(p)]
+    weightedTerms: [basename(p)],
   }));
 
   const metaHits = rankDocs(input.question, metadataDocs);
   const candidateK = Math.max(5, Math.ceil(input.budget_tokens / 400));
   const topMeta = metaHits.slice(0, candidateK * CANDIDATE_MULTIPLIER);
-  const topPaths = topMeta.length > 0
-    ? topMeta.map(h => h.id)
-    : candidatePaths.slice(0, candidateK);
+  const topPaths =
+    topMeta.length > 0 ? topMeta.map((h) => h.id) : candidatePaths.slice(0, candidateK);
 
   const bodies = await Promise.all(
-    topPaths.map(async p => ({ path: p, raw: await safeFetch(client, snap.sha, p) }))
+    topPaths.map(async (p) => ({ path: p, raw: await safeFetch(client, snap.sha, p) })),
   );
 
-  const bodyDocs: RankDoc[] = bodies.map(b => {
+  const bodyDocs: RankDoc[] = bodies.map((b) => {
     const parsed = parseFrontmatter(b.raw, { pathHint: b.path });
     const tagTerms = extractStringArray(parsed.data.tags);
     const entityTerms = extractStringArray(parsed.data.entities);
@@ -50,24 +49,28 @@ export async function buildContext(
     return {
       id: b.path,
       text: `${parsed.title} ${parsed.body}`,
-      weightedTerms: [parsed.title, ...tagTerms, ...entityTerms, ...conceptTerms, ...parsed.headings]
+      weightedTerms: [
+        parsed.title,
+        ...tagTerms,
+        ...entityTerms,
+        ...conceptTerms,
+        ...parsed.headings,
+      ],
     };
   });
   const bodyHits = rankDocs(input.question, bodyDocs);
-  const chosen = (bodyHits.length > 0 ? bodyHits : metaHits)
-    .slice(0, candidateK)
-    .map(h => h.id);
+  const chosen = (bodyHits.length > 0 ? bodyHits : metaHits).slice(0, candidateK).map((h) => h.id);
 
-  const bodyByPath = new Map(bodies.map(b => [b.path, b.raw]));
+  const bodyByPath = new Map(bodies.map((b) => [b.path, b.raw]));
 
   const expansions = new Map<string, { body: string; parent: string }>();
   for (const parentPath of chosen) {
     const parentBody = bodyByPath.get(parentPath) ?? "";
     const linked = extractLinks(parentBody);
     const resolved = linked
-      .map(l => resolveLink(l, parentPath, snap.allPaths))
+      .map((l) => resolveLink(l, parentPath, snap.allPaths))
       .filter((x): x is string => !!x)
-      .filter(p => !chosen.includes(p) && !expansions.has(p))
+      .filter((p) => !chosen.includes(p) && !expansions.has(p))
       .slice(0, EXPAND_CAP_PER_PAGE);
 
     for (const p of resolved) {
@@ -87,10 +90,10 @@ export async function buildContext(
       .map(([k]) => k);
     hits.push({
       path,
-      score: bodyHits.find(h => h.id === path)?.score ?? 0,
+      score: bodyHits.find((h) => h.id === path)?.score ?? 0,
       reason: "direct match",
       body: trunc.text,
-      links_expanded: expandedPaths
+      links_expanded: expandedPaths,
     });
     remaining -= estimateTokens(trunc.text);
     if (remaining <= 0) break;
@@ -101,7 +104,7 @@ export async function buildContext(
     for (const [path, entry] of sortedExpansions) {
       if (remaining <= 0) break;
       const trunc = truncateAtHeading(entry.body, remaining, { path });
-      const parentHit = hits.find(h => h.path === entry.parent);
+      const parentHit = hits.find((h) => h.path === entry.parent);
       if (parentHit && !parentHit.links_expanded.includes(path)) {
         parentHit.links_expanded.push(path);
       }
@@ -110,7 +113,7 @@ export async function buildContext(
         score: 0,
         reason: `expansion from ${entry.parent}`,
         body: trunc.text,
-        links_expanded: []
+        links_expanded: [],
       });
       remaining -= estimateTokens(trunc.text);
     }
@@ -125,7 +128,7 @@ export async function buildContext(
     indexes,
     recent_log,
     hits,
-    citation_instructions: CITATION_INSTRUCTIONS
+    citation_instructions: CITATION_INSTRUCTIONS,
   };
 }
 
@@ -147,7 +150,7 @@ function collectCandidatePaths(snap: Snapshot, domainFilter: string): string[] {
 }
 
 function pathToText(path: string): string {
-  return path.replace(/\.md$/, "").replace(/[\/_-]/g, " ");
+  return path.replace(/\.md$/, "").replace(/[/_-]/g, " ");
 }
 
 function basename(path: string): string {
@@ -156,10 +159,14 @@ function basename(path: string): string {
 
 function extractStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(v => typeof v === "string");
+  return value.filter((v) => typeof v === "string");
 }
 
-async function readIndexes(snap: Snapshot, client: GithubClient, domainFilter: string): Promise<Record<string, string>> {
+async function readIndexes(
+  snap: Snapshot,
+  client: GithubClient,
+  domainFilter: string,
+): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const [name, dom] of snap.domains) {
     if (domainFilter !== "all" && domainFilter !== name) continue;
@@ -172,12 +179,16 @@ async function readSchema(snap: Snapshot, client: GithubClient): Promise<string>
   const parts: string[] = [];
   for (const p of snap.schemaPaths) {
     const body = await safeFetch(client, snap.sha, p);
-    if (body) parts.push(`\n\n--- ${p} ---\n\n` + body);
+    if (body) parts.push(`\n\n--- ${p} ---\n\n${body}`);
   }
   return parts.join("\n").trim();
 }
 
-async function readRecentLog(snap: Snapshot, client: GithubClient, domainFilter: string): Promise<string[]> {
+async function readRecentLog(
+  snap: Snapshot,
+  client: GithubClient,
+  domainFilter: string,
+): Promise<string[]> {
   const all: Array<{ line: string; date: string }> = [];
   for (const [name, dom] of snap.domains) {
     if (domainFilter !== "all" && domainFilter !== name) continue;
@@ -190,5 +201,5 @@ async function readRecentLog(snap: Snapshot, client: GithubClient, domainFilter:
   return all
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 50)
-    .map(e => e.line);
+    .map((e) => e.line);
 }

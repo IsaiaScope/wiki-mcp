@@ -1,7 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import type { Env } from "./env";
 import { checkBearer, unauthorized } from "./auth";
-import { createServer, buildDeps, type ServerDeps } from "./server";
+import type { Env } from "./env";
+import { buildDeps, createServer, type ServerDeps } from "./server";
 
 let cachedDeps: ServerDeps | null = null;
 let cachedRepo: string | null = null;
@@ -33,10 +33,10 @@ export default {
 
     const handle = await createServer(env, getDeps(env));
     const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: undefined
+      sessionIdGenerator: undefined,
     });
     await handle.raw.connect(transport);
 
     return transport.handleRequest(request);
-  }
+  },
 };

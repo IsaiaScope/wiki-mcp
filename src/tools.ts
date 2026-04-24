@@ -1,11 +1,11 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { Env } from "./env";
-import type { GithubClient } from "./github";
-import type { Snapshot } from "./types";
+import { z } from "zod";
 import { buildContext } from "./context";
-import { rankDocs } from "./rank";
+import type { Env } from "./env";
 import { parseFrontmatter } from "./frontmatter";
+import type { GithubClient } from "./github";
+import { rankDocs } from "./rank";
+import type { Snapshot } from "./types";
 
 export type ToolContext = {
   env: Env;
@@ -29,41 +29,42 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
       inputSchema: {
         question: z.string(),
         domain: z.string().optional(),
-        budget_tokens: z.number().int().positive().max(12000).optional()
+        budget_tokens: z.number().int().positive().max(12000).optional(),
       },
-      annotations: { readOnlyHint: true, idempotentHint: true }
+      annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    async args => wikiContextHandler(args, ctx)
+    async (args) => wikiContextHandler(args, ctx),
   );
-  table.set("wiki_context", raw => wikiContextHandler(raw, ctx));
+  table.set("wiki_context", (raw) => wikiContextHandler(raw, ctx));
 
   server.registerTool(
     "wiki_search",
     {
-      description: "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
+      description:
+        "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
       inputSchema: {
         query: z.string(),
         domain: z.string().optional(),
-        limit: z.number().int().positive().max(50).optional()
+        limit: z.number().int().positive().max(50).optional(),
       },
-      annotations: { readOnlyHint: true, idempotentHint: true }
+      annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    async args => wikiSearchHandler(args, ctx)
+    async (args) => wikiSearchHandler(args, ctx),
   );
-  table.set("wiki_search", raw => wikiSearchHandler(raw, ctx));
+  table.set("wiki_search", (raw) => wikiSearchHandler(raw, ctx));
 
   server.registerTool(
     "wiki_fetch",
     {
       description: "Batch read pages by path. Max 20 paths per call.",
       inputSchema: {
-        paths: z.array(z.string()).min(1).max(20)
+        paths: z.array(z.string()).min(1).max(20),
       },
-      annotations: { readOnlyHint: true, idempotentHint: true }
+      annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    async args => wikiFetchHandler(args, ctx)
+    async (args) => wikiFetchHandler(args, ctx),
   );
-  table.set("wiki_fetch", raw => wikiFetchHandler(raw, ctx));
+  table.set("wiki_fetch", (raw) => wikiFetchHandler(raw, ctx));
 
   server.registerTool(
     "wiki_list",
@@ -71,13 +72,13 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
       description: "List discovered pages, optionally filtered by domain and/or type.",
       inputSchema: {
         domain: z.string().optional(),
-        type: z.string().optional()
+        type: z.string().optional(),
       },
-      annotations: { readOnlyHint: true, idempotentHint: true }
+      annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    async args => wikiListHandler(args, ctx)
+    async (args) => wikiListHandler(args, ctx),
   );
-  table.set("wiki_list", raw => wikiListHandler(raw, ctx));
+  table.set("wiki_list", (raw) => wikiListHandler(raw, ctx));
 
   return {
     names: () => [...table.keys()],
@@ -85,7 +86,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
       const h = table.get(name);
       if (!h) return errorResult(`Unknown tool: ${name}`);
       return h(args);
-    }
+    },
   };
 }
 
@@ -96,7 +97,7 @@ function errorResult(msg: string): ToolResult {
 const contextSchema = z.object({
   question: z.string(),
   domain: z.string().optional().default("all"),
-  budget_tokens: z.number().optional().default(6000)
+  budget_tokens: z.number().optional().default(6000),
 });
 async function wikiContextHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = contextSchema.safeParse(raw);
@@ -113,7 +114,7 @@ async function wikiContextHandler(raw: unknown, ctx: ToolContext): Promise<ToolR
 const searchSchema = z.object({
   query: z.string(),
   domain: z.string().optional().default("all"),
-  limit: z.number().optional().default(10)
+  limit: z.number().optional().default(10),
 });
 async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = searchSchema.safeParse(raw);
@@ -126,16 +127,16 @@ async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
       if (parsed.data.domain !== "all" && parsed.data.domain !== name) continue;
       for (const [, paths] of dom.wikiTypes) {
         for (const p of paths) {
-          docs.push({ id: p, text: p.replace(/[\/_-]/g, " ").replace(/\.md$/, "") });
+          docs.push({ id: p, text: p.replace(/[/_-]/g, " ").replace(/\.md$/, "") });
         }
       }
     }
     const ranked = rankDocs(parsed.data.query, docs).slice(0, parsed.data.limit);
-    const results = ranked.map(r => ({
+    const results = ranked.map((r) => ({
       path: r.id,
       title: r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id,
       snippet: "",
-      score: r.score
+      score: r.score,
     }));
     return { content: [{ type: "text", text: JSON.stringify(results) }] };
   } catch (e) {
@@ -149,15 +150,17 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
-    const out = await Promise.all(parsed.data.paths.map(async p => {
-      try {
-        const body = await ctx.github.fetchBody(snap.sha, p);
-        const fm = parseFrontmatter(body, { pathHint: p });
-        return { path: p, content: body, frontmatter: fm.data };
-      } catch (e) {
-        return { path: p, content: "", frontmatter: {}, error: (e as Error).message };
-      }
-    }));
+    const out = await Promise.all(
+      parsed.data.paths.map(async (p) => {
+        try {
+          const body = await ctx.github.fetchBody(snap.sha, p);
+          const fm = parseFrontmatter(body, { pathHint: p });
+          return { path: p, content: body, frontmatter: fm.data };
+        } catch (e) {
+          return { path: p, content: "", frontmatter: {}, error: (e as Error).message };
+        }
+      }),
+    );
     return { content: [{ type: "text", text: JSON.stringify(out) }] };
   } catch (e) {
     return errorResult((e as Error).message);
@@ -166,7 +169,7 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
 
 const listSchema = z.object({
   domain: z.string().optional(),
-  type: z.string().optional()
+  type: z.string().optional(),
 });
 async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = listSchema.safeParse(raw);

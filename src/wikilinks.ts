@@ -1,4 +1,4 @@
-const LINK_RE = /\[\[([^\[\]|#]+?)(?:#[^\[\]|]+)?(?:\|[^\[\]]+)?\]\]/g;
+const LINK_RE = /\[\[([^[\]|#]+?)(?:#[^[\]|]+)?(?:\|[^[\]]+)?\]\]/g;
 
 export function extractLinks(markdown: string): string[] {
   const seen = new Set<string>();
@@ -8,11 +8,7 @@ export function extractLinks(markdown: string): string[] {
   return [...seen];
 }
 
-export function resolveLink(
-  link: string,
-  sourcePath: string,
-  allPaths: string[]
-): string | null {
+export function resolveLink(link: string, sourcePath: string, allPaths: string[]): string | null {
   const target = link.endsWith(".md") ? link : `${link}.md`;
 
   if (allPaths.includes(target)) return target;

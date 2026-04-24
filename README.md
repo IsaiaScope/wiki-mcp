@@ -32,26 +32,29 @@ And four resources:
 # 1. Clone
 git clone https://github.com/<your-gh-user>/wiki-mcp.git
 cd wiki-mcp
-npm install
+pnpm install
+pnpm prepare                                       # installs husky hooks
 
 # 2. Configure wrangler.toml [vars].GITHUB_REPO to point at your wiki repo.
 #    Example: GITHUB_REPO = "alice/my-wiki"
 #             WIKI_SERVER_NAME = "alices-wiki"
 
 # 3. Cloudflare login + secrets
-npx wrangler login                                 # one-time browser OAuth
+pnpm exec wrangler login                           # one-time browser OAuth
 openssl rand -hex 32                               # copy this token
-npx wrangler secret put MCP_BEARER                 # paste the openssl hex
-npx wrangler secret put GITHUB_TOKEN               # paste a fine-grained PAT (contents:read)
+pnpm exec wrangler secret put MCP_BEARER           # paste the openssl hex
+pnpm exec wrangler secret put GITHUB_TOKEN         # paste a fine-grained PAT (contents:read)
 
 # 4. Deploy
-npx wrangler deploy
+pnpm deploy
 # => https://wiki-mcp.<your-subdomain>.workers.dev
 
 # 5. Smoke-test
 curl https://wiki-mcp.<your-subdomain>.workers.dev/health
 # => {"ok":true,"at":"..."}
 ```
+
+Requires pnpm 10+ and Node 20+.
 
 ### Creating the GitHub PAT
 
@@ -116,17 +119,26 @@ Everything is env-driven. Fork this repo and point it at your wiki — no code c
 ## Development
 
 ```bash
-npx wrangler dev           # local server on :8787
-npm test                   # vitest
-npm run test:coverage      # with coverage report
-npm run typecheck          # tsc --noEmit
+pnpm dev                   # wrangler dev, local server on :8787
+pnpm test                  # vitest
+pnpm test:coverage         # with coverage report
+pnpm typecheck             # tsc --noEmit
+pnpm lint                  # ultracite check (biome under the hood)
+pnpm fix                   # ultracite fix
 ```
 
 68 tests across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
+## Tooling
+
+- **pnpm** 10+ for package management
+- **biome** + **ultracite** for linting and formatting
+- **husky** + **lint-staged** for pre-commit checks
+- **post-commit hook** auto-bumps `package.json` version (patch by default; `feat:` → minor; `!:` / `BREAKING CHANGE` → major) and amends into the same commit
+
 ## CI/CD
 
-`.github/workflows/deploy.yml` runs `npm test`, `npm run typecheck`, then `wrangler deploy` on every push to `main`. Set `CLOUDFLARE_API_TOKEN` in repo Settings → Secrets → Actions.
+`.github/workflows/deploy.yml` runs `pnpm typecheck`, `pnpm test`, then `wrangler deploy` on every push to `main`. Set `CLOUDFLARE_API_TOKEN` in repo Settings → Secrets → Actions.
 
 ## Architecture
 

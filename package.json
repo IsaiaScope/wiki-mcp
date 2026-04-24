@@ -1,29 +1,47 @@
 {
   "name": "wiki-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read-only MCP server exposing an LLM-wiki vault to Claude clients",
   "private": false,
   "license": "MIT",
   "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "ultracite check",
+    "lint:fix": "ultracite fix",
+    "format": "biome format --write .",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.11",
     "@cloudflare/workers-types": "^4.20260101.0",
     "@types/node": "^20.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.6.0",
     "@vitest/coverage-v8": "^1.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "typescript": "^5.4.0",
+    "ultracite": "^7.5.8",
+    "vitest": "^1.6.0",
     "wrangler": "^3.60.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "gray-matter": "^4.0.3",
     "zod": "^3.25.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
   }
 }

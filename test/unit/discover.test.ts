@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildSnapshot } from "../../src/discover";
-import { loadFixtureTree, makeEnv } from "../helpers";
 import type { TreeResponse } from "../../src/github";
+import { loadFixtureTree, makeEnv } from "../helpers";
 
 describe("buildSnapshot", () => {
   it("discovers both domains from fixture tree", () => {
@@ -29,14 +29,10 @@ describe("buildSnapshot", () => {
     const snap = buildSnapshot(tree, makeEnv());
 
     const personal = snap.domains.get("personal")!;
-    expect(personal.wikiTypes.get("entities")).toEqual([
-      "personal/wiki/entities/Foo.md"
-    ]);
-    expect(personal.wikiTypes.get("concepts")).toEqual([
-      "personal/wiki/concepts/bar-baz.md"
-    ]);
+    expect(personal.wikiTypes.get("entities")).toEqual(["personal/wiki/entities/Foo.md"]);
+    expect(personal.wikiTypes.get("concepts")).toEqual(["personal/wiki/concepts/bar-baz.md"]);
     expect(personal.wikiTypes.get("sources")).toEqual([
-      "personal/wiki/sources/2026-01-01-sample.md"
+      "personal/wiki/sources/2026-01-01-sample.md",
     ]);
   });
 
@@ -44,9 +40,7 @@ describe("buildSnapshot", () => {
     const tree = loadFixtureTree() as TreeResponse;
     const snap = buildSnapshot(tree, makeEnv());
 
-    expect(snap.domains.get("personal")!.rawPaths).toEqual([
-      "personal/raw/note.pdf"
-    ]);
+    expect(snap.domains.get("personal")!.rawPaths).toEqual(["personal/raw/note.pdf"]);
   });
 
   it("collects schema paths via SCHEMA_GLOBS", () => {
@@ -54,7 +48,7 @@ describe("buildSnapshot", () => {
     const snap = buildSnapshot(tree, makeEnv());
 
     expect(snap.schemaPaths.sort()).toEqual(
-      ["CLAUDE.md", "docs/llm-wiki.md", "personal/CLAUDE.md"].sort()
+      ["CLAUDE.md", "docs/llm-wiki.md", "personal/CLAUDE.md"].sort(),
     );
   });
 
@@ -71,13 +65,13 @@ describe("buildSnapshot", () => {
       tree: [
         { path: "research/index.md", type: "blob", sha: "a", mode: "100644" },
         { path: "research/log.md", type: "blob", sha: "b", mode: "100644" },
-        { path: "research/wiki/concepts/x.md", type: "blob", sha: "c", mode: "100644" }
-      ]
+        { path: "research/wiki/concepts/x.md", type: "blob", sha: "c", mode: "100644" },
+      ],
     };
     const snap = buildSnapshot(tree, makeEnv());
     expect(snap.domains.has("research")).toBe(true);
     expect(snap.domains.get("research")!.wikiTypes.get("concepts")).toEqual([
-      "research/wiki/concepts/x.md"
+      "research/wiki/concepts/x.md",
     ]);
   });
 });

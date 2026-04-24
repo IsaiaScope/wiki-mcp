@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { buildSnapshot } from "./discover";
 import type { Env } from "./env";
 import { GithubClient } from "./github";
-import { buildSnapshot } from "./discover";
+import { type ReadResult, type ResourceContext, registerResources } from "./resources";
 import { registerTools, type ToolContext, type ToolResult } from "./tools";
-import { registerResources, type ResourceContext, type ReadResult } from "./resources";
 import type { Snapshot } from "./types";
 
 export type ServerHandle = {
@@ -39,8 +39,8 @@ export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerH
   const server = new McpServer(
     { name: env.WIKI_SERVER_NAME, version: "0.1.0" },
     {
-      instructions: `Personal knowledge wiki for ${env.WIKI_SERVER_NAME}. Call wiki_context before answering questions that may involve wiki knowledge (entities, concepts, sources, personal or work topics). Cite with [[path]]. Domains are discovered at runtime; read wiki://index/all to see the current layout. Never invent sources or pages not present in the wiki.`
-    }
+      instructions: `Personal knowledge wiki for ${env.WIKI_SERVER_NAME}. Call wiki_context before answering questions that may involve wiki knowledge (entities, concepts, sources, personal or work topics). Cite with [[path]]. Domains are discovered at runtime; read wiki://index/all to see the current layout. Never invent sources or pages not present in the wiki.`,
+    },
   );
 
   const ctx: ToolContext & ResourceContext = { env, github, getSnapshot };
@@ -52,6 +52,6 @@ export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerH
     listToolNames: () => tools.names(),
     listResourceUris: () => resources.uris(),
     callTool: (n, a) => tools.call(n, a),
-    readResource: uri => resources.read(uri)
+    readResource: (uri) => resources.read(uri),
   };
 }

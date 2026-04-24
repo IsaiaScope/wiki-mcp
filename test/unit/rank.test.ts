@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { tokenize, rankDocs } from "../../src/rank";
+import { describe, expect, it } from "vitest";
+import { rankDocs, tokenize } from "../../src/rank";
 
 describe("tokenize", () => {
   it("lowercases and strips punctuation", () => {
@@ -27,7 +27,7 @@ describe("rankDocs", () => {
   it("returns higher score for docs that contain query terms", () => {
     const docs = [
       { id: "a", text: "tfr is severance money in italy" },
-      { id: "b", text: "unrelated document about weather" }
+      { id: "b", text: "unrelated document about weather" },
     ];
     const ranked = rankDocs("tfr severance", docs);
     expect(ranked[0].id).toBe("a");
@@ -36,7 +36,7 @@ describe("rankDocs", () => {
   it("rewards multi-term matches over single-term", () => {
     const docs = [
       { id: "both", text: "tfr severance" },
-      { id: "one",  text: "tfr alone" }
+      { id: "one", text: "tfr alone" },
     ];
     const ranked = rankDocs("tfr severance", docs);
     expect(ranked[0].id).toBe("both");
@@ -45,7 +45,7 @@ describe("rankDocs", () => {
   it("respects quoted-phrase boost", () => {
     const docs = [
       { id: "phrase", text: "la busta paga is the payslip" },
-      { id: "terms",  text: "busta paga split elsewhere la" }
+      { id: "terms", text: "busta paga split elsewhere la" },
     ];
     const ranked = rankDocs(`"la busta paga"`, docs);
     expect(ranked[0].id).toBe("phrase");
@@ -59,7 +59,7 @@ describe("rankDocs", () => {
   it("scores with weighted-terms signal (frontmatter repeats)", () => {
     const docs = [
       { id: "heavy", text: "tfr", weightedTerms: ["tfr", "tfr", "tfr"] },
-      { id: "plain", text: "tfr" }
+      { id: "plain", text: "tfr" },
     ];
     const ranked = rankDocs("tfr", docs);
     expect(ranked[0].id).toBe("heavy");

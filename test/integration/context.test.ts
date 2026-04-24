@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { beforeEach, describe, expect, it } from "vitest";
 import { buildContext } from "../../src/context";
-import { GithubClient } from "../../src/github";
 import { buildSnapshot } from "../../src/discover";
+import { GithubClient } from "../../src/github";
 import { makeEnv, makeFixtureFetch } from "../helpers";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -24,14 +24,14 @@ describe("wiki_context orchestrator", () => {
       { question: "tell me about Foo", domain: "all", budget_tokens: 4000 },
       snap,
       client,
-      env
+      env,
     );
 
     expect(bundle.schema).toContain("LLM Wiki Pattern");
     expect(bundle.indexes).toHaveProperty("personal");
     expect(bundle.indexes).toHaveProperty("work");
     expect(bundle.hits.length).toBeGreaterThan(0);
-    const paths = bundle.hits.map(h => h.path);
+    const paths = bundle.hits.map((h) => h.path);
     expect(paths).toContain("personal/wiki/entities/Foo.md");
     expect(bundle.citation_instructions).toMatch(/\[\[path\]\]/);
   });
@@ -44,9 +44,9 @@ describe("wiki_context orchestrator", () => {
       { question: "Foo", domain: "personal", budget_tokens: 4000 },
       snap,
       client,
-      env
+      env,
     );
-    const fooHit = bundle.hits.find(h => h.path === "personal/wiki/entities/Foo.md")!;
+    const fooHit = bundle.hits.find((h) => h.path === "personal/wiki/entities/Foo.md")!;
     expect(fooHit.links_expanded).toContain("personal/wiki/concepts/bar-baz.md");
   });
 
@@ -58,9 +58,9 @@ describe("wiki_context orchestrator", () => {
       { question: "Qux", domain: "work", budget_tokens: 4000 },
       snap,
       client,
-      env
+      env,
     );
-    expect(bundle.hits.every(h => h.path.startsWith("work/"))).toBe(true);
+    expect(bundle.hits.every((h) => h.path.startsWith("work/"))).toBe(true);
   });
 
   it("clamps to budget_tokens and marks truncation", async () => {
@@ -71,9 +71,9 @@ describe("wiki_context orchestrator", () => {
       { question: "Foo bar-baz concept entity", domain: "all", budget_tokens: 50 },
       snap,
       client,
-      env
+      env,
     );
-    const hasTrunc = bundle.hits.some(h => h.body.includes("[…truncated"));
+    const hasTrunc = bundle.hits.some((h) => h.body.includes("[…truncated"));
     expect(hasTrunc || bundle.hits.length <= 1).toBe(true);
   });
 });

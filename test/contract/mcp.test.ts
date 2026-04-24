@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../../src/server";
 import { makeEnv, makeFixtureFetch } from "../helpers";
 
@@ -23,7 +23,7 @@ describe("MCP contract", () => {
     await client.connect(clientT);
 
     const list = await client.listTools();
-    const names = list.tools.map(t => t.name).sort();
+    const names = list.tools.map((t) => t.name).sort();
     expect(names).toEqual(["wiki_context", "wiki_fetch", "wiki_list", "wiki_search"]);
     for (const t of list.tools) {
       expect(t.description).toBeTruthy();
@@ -57,7 +57,7 @@ describe("MCP contract", () => {
     await client.connect(clientT);
 
     const list = await client.listResources();
-    const uris = list.resources.map(r => r.uri);
+    const uris = list.resources.map((r) => r.uri);
     expect(uris).toContain("wiki://schema");
     expect(uris).toContain("wiki://index/all");
     expect(uris).toContain("wiki://log/recent");

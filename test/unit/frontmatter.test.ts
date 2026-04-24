@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parseFrontmatter } from "../../src/frontmatter";
 
 describe("parseFrontmatter", () => {
@@ -49,7 +49,9 @@ text
   });
 
   it("falls back title to basename hint (no H1, no frontmatter)", () => {
-    const out = parseFrontmatter("body without title", { pathHint: "personal/wiki/entities/Foo.md" });
+    const out = parseFrontmatter("body without title", {
+      pathHint: "personal/wiki/entities/Foo.md",
+    });
     expect(out.title).toBe("Foo");
   });
 });

@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../../src/server";
 import { makeEnv, makeFixtureFetch } from "../helpers";
 

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# Auto-bump version on every commit, then amend into the same commit.
+# Adapted from sofi's post-commit — single-package repo, no Cargo/Tauri sync.
+
+# Prevent infinite loop: the amend below re-triggers post-commit.
+[ -n "$VERSION_BUMP_RUNNING" ] && exit 0
+
+COMMIT_MSG=$(git log -1 --format=%s HEAD)
+
+# Skip merge commits.
+echo "$COMMIT_MSG" | grep -qE '^Merge ' && exit 0
+
+# Skip version-bump commits themselves (avoids double-bump on amends).
+echo "$COMMIT_MSG" | grep -qE '^chore\(release\):' && exit 0
+
+# Determine bump type: feat → minor, BREAKING → major, everything else → patch.
+if echo "$COMMIT_MSG" | grep -qE '!:|BREAKING CHANGE'; then
+    BUMP="major"
+elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+    BUMP="minor"
+else
+    BUMP="patch"
+fi
+
+export VERSION_BUMP_RUNNING=1
+
+pnpm version "$BUMP" --no-git-tag-version >/dev/null
+
+git add package.json pnpm-lock.yaml 2>/dev/null
+git commit --amend --no-edit --no-verify

@@ -7,7 +7,11 @@ export function estimateTokens(text: string): number {
 export type TruncOpts = { path?: string };
 export type TruncResult = { text: string; truncated: boolean };
 
-export function truncateAtHeading(body: string, budgetTokens: number, opts: TruncOpts = {}): TruncResult {
+export function truncateAtHeading(
+  body: string,
+  budgetTokens: number,
+  opts: TruncOpts = {},
+): TruncResult {
   if (estimateTokens(body) <= budgetTokens) {
     return { text: body, truncated: false };
   }
@@ -29,8 +33,6 @@ export function truncateAtHeading(body: string, budgetTokens: number, opts: Trun
   }
 
   const cut = lastSafeCut > 0 ? acc.slice(0, lastSafeCut) : acc;
-  const pointer = opts.path
-    ? `\n\n[…truncated, full at ${opts.path}]`
-    : `\n\n[…truncated]`;
+  const pointer = opts.path ? `\n\n[…truncated, full at ${opts.path}]` : `\n\n[…truncated]`;
   return { text: cut.trimEnd() + pointer, truncated: true };
 }

@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -19,17 +19,18 @@ export function makeEnv(overrides: Record<string, string> = {}) {
     DOMAIN_REQUIRED_FILES: "index.md,log.md",
     MCP_BEARER: "test-bearer",
     GITHUB_TOKEN: "test-pat",
-    ...overrides
+    ...overrides,
   };
 }
 
 export function makeFixtureFetch(fixturesRoot: string) {
   return async (input: RequestInfo | URL): Promise<Response> => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    const url =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
     if (url.includes("/git/trees/")) {
       return new Response(JSON.stringify(loadFixtureTree()), {
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     }
 

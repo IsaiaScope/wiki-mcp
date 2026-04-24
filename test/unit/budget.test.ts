@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { estimateTokens, truncateAtHeading } from "../../src/budget";
 
 describe("estimateTokens", () => {
@@ -29,13 +29,13 @@ describe("truncateAtHeading", () => {
     const body = [
       "# Top",
       "",
-      "intro paragraph " + "x ".repeat(40),
+      `intro paragraph ${"x ".repeat(40)}`,
       "",
       "## First",
-      "first section " + "y ".repeat(40),
+      `first section ${"y ".repeat(40)}`,
       "",
       "## Second",
-      "second section " + "z ".repeat(40)
+      `second section ${"z ".repeat(40)}`,
     ].join("\n");
 
     const out = truncateAtHeading(body, 60);
@@ -46,7 +46,7 @@ describe("truncateAtHeading", () => {
   });
 
   it("appends citation pointer with path", () => {
-    const long = "# T\n" + ("word ".repeat(500));
+    const long = `# T\n${"word ".repeat(500)}`;
     const out = truncateAtHeading(long, 20, { path: "personal/wiki/entities/Foo.md" });
     expect(out.text).toMatch(/\[…truncated, full at personal\/wiki\/entities\/Foo\.md\]/);
   });

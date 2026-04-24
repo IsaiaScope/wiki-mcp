@@ -1,17 +1,23 @@
 import type { Env } from "./env";
 import { parseCsv } from "./env";
 import type { TreeResponse } from "./github";
-import type { Snapshot, Domain } from "./types";
+import type { Domain, Snapshot } from "./types";
 
-const SKIP_TOP_DIRS = new Set([".git", ".github", "docs", "mcp", "node_modules", ".obsidian", ".trash"]);
+const SKIP_TOP_DIRS = new Set([
+  ".git",
+  ".github",
+  "docs",
+  "mcp",
+  "node_modules",
+  ".obsidian",
+  ".trash",
+]);
 
 export function buildSnapshot(tree: TreeResponse, env: Env): Snapshot {
   const requiredFiles = parseCsv(env.DOMAIN_REQUIRED_FILES);
   const schemaGlobs = parseCsv(env.SCHEMA_GLOBS);
 
-  const allPaths = tree.tree
-    .filter(e => e.type === "blob")
-    .map(e => e.path);
+  const allPaths = tree.tree.filter((e) => e.type === "blob").map((e) => e.path);
 
   const topDirs = collectTopDirs(allPaths);
   const domains = new Map<string, Domain>();
@@ -19,19 +25,19 @@ export function buildSnapshot(tree: TreeResponse, env: Env): Snapshot {
   for (const dir of topDirs) {
     if (SKIP_TOP_DIRS.has(dir) || dir.startsWith(".")) continue;
     if (!hasRequiredFiles(dir, requiredFiles, allPaths)) continue;
-    if (!allPaths.some(p => p.startsWith(`${dir}/wiki/`))) continue;
+    if (!allPaths.some((p) => p.startsWith(`${dir}/wiki/`))) continue;
 
     domains.set(dir, buildDomain(dir, allPaths));
   }
 
-  const schemaPaths = allPaths.filter(p => matchesAnyGlob(p, schemaGlobs));
+  const schemaPaths = allPaths.filter((p) => matchesAnyGlob(p, schemaGlobs));
 
   return {
     sha: tree.sha,
     fetchedAt: Date.now(),
     domains,
     allPaths,
-    schemaPaths
+    schemaPaths,
   };
 }
 
@@ -45,7 +51,7 @@ function collectTopDirs(paths: string[]): Set<string> {
 }
 
 function hasRequiredFiles(dir: string, required: string[], all: string[]): boolean {
-  return required.every(f => all.includes(`${dir}/${f}`));
+  return required.every((f) => all.includes(`${dir}/${f}`));
 }
 
 function buildDomain(name: string, all: string[]): Domain {
@@ -69,9 +75,7 @@ function buildDomain(name: string, all: string[]): Domain {
     }
   }
 
-  const claudeMdPath = all.includes(`${name}/CLAUDE.md`)
-    ? `${name}/CLAUDE.md`
-    : undefined;
+  const claudeMdPath = all.includes(`${name}/CLAUDE.md`) ? `${name}/CLAUDE.md` : undefined;
 
   return {
     name,
@@ -79,12 +83,12 @@ function buildDomain(name: string, all: string[]): Domain {
     logPath: `${name}/log.md`,
     claudeMdPath,
     wikiTypes,
-    rawPaths
+    rawPaths,
   };
 }
 
 function matchesAnyGlob(path: string, globs: string[]): boolean {
-  return globs.some(g => matchGlob(path, g));
+  return globs.some((g) => matchGlob(path, g));
 }
 
 function matchGlob(path: string, glob: string): boolean {
@@ -92,13 +96,13 @@ function matchGlob(path: string, glob: string): boolean {
     "^" +
       glob
         .split("/")
-        .map(seg => seg === "*" ? "[^/]+" : escapeRegex(seg).replace(/\\\*/g, "[^/]*"))
+        .map((seg) => (seg === "*" ? "[^/]+" : escapeRegex(seg).replace(/\\\*/g, "[^/]*")))
         .join("/") +
-      "$"
+      "$",
   );
   return re.test(path);
 }
 
 function escapeRegex(s: string): string {
-  return s.replace(/[.+?^${}()|\[\]\\]/g, "\\$&");
+  return s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
 }

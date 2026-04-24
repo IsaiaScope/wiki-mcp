@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createServer } from "../../src/server";
 import { makeEnv, makeFixtureFetch } from "../helpers";
 
@@ -38,7 +38,7 @@ describe("MCP tools", () => {
   it("wiki_fetch returns bodies by path", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_fetch", {
-      paths: ["personal/wiki/entities/Foo.md"]
+      paths: ["personal/wiki/entities/Foo.md"],
     });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed[0].path).toBe("personal/wiki/entities/Foo.md");

@@ -23,7 +23,7 @@ export function parseFrontmatter(raw: string, opts: ParseOptions = {}): ParsedPa
 function pickTitle(
   data: Record<string, unknown>,
   body: string,
-  pathHint: string | undefined
+  pathHint: string | undefined,
 ): string {
   if (typeof data.title === "string" && data.title.trim()) return data.title.trim();
   const h1 = body.match(/^#\s+(.+?)\s*$/m);
@@ -38,5 +38,5 @@ function pickTitle(
 function firstTwoH2(body: string): string[] {
   const matches = body.match(/^##\s+(.+?)\s*$/gm);
   if (!matches) return [];
-  return matches.slice(0, 2).map(m => m.replace(/^##\s+/, "").trim());
+  return matches.slice(0, 2).map((m) => m.replace(/^##\s+/, "").trim());
 }
