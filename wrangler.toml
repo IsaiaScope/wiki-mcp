@@ -1,0 +1,11 @@
+name = "wiki-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-04-24"
+
+[vars]
+GITHUB_REPO = "IsaiaScope/wikionfire"
+GITHUB_BRANCH = "main"
+WIKI_SERVER_NAME = "wikionfire"
+CACHE_TTL_SECONDS = "60"
+SCHEMA_GLOBS = "CLAUDE.md,*/CLAUDE.md,docs/llm-wiki.md"
+DOMAIN_REQUIRED_FILES = "index.md,log.md"
