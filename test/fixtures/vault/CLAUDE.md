@@ -1,0 +1,2 @@
+# Root schema
+Test fixture.
