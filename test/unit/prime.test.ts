@@ -186,3 +186,36 @@ describe("buildPrime — full (opt-in vocab)", () => {
     expect(occurrences).toBe(1);
   });
 });
+
+describe("buildPrime — off (opt-out)", () => {
+  it("vocabMode reported as 'off'", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "off" }));
+    expect(p.vocabMode).toBe("off");
+  });
+
+  it("instructions are a minimal one-liner", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Fincons"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "off" }));
+    expect(p.instructions).toContain("Call wiki_context");
+    expect(p.instructions).not.toContain("Domains discovered");
+    expect(p.instructions).not.toContain("Fincons");
+  });
+
+  it("tool descriptions revert to the static strings", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "off" }));
+    expect(p.toolDescriptions.wiki_context).not.toContain("wiki://overview");
+    expect(p.toolDescriptions.wiki_context).not.toContain("Trigger vocabulary");
+    expect(p.toolDescriptions.wiki_search).toBe(
+      "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
+    );
+  });
+
+  it("overview bodies note suppression", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "off" }));
+    expect(p.overviewIndex).toContain("suppressed by WIKI_PRIME_VOCAB=off");
+    expect(p.overviewByDomain.get("personal")).toContain("suppressed");
+  });
+});
