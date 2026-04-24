@@ -1,10 +1,22 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { Env } from "./env";
 import { checkBearer, unauthorized } from "./auth";
-import { createServer } from "./server";
+import { createServer, buildDeps, type ServerDeps } from "./server";
+
+let cachedDeps: ServerDeps | null = null;
+let cachedRepo: string | null = null;
+
+function getDeps(env: Env): ServerDeps {
+  const key = `${env.GITHUB_REPO}@${env.GITHUB_BRANCH}`;
+  if (!cachedDeps || cachedRepo !== key) {
+    cachedDeps = buildDeps(env);
+    cachedRepo = key;
+  }
+  return cachedDeps;
+}
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
@@ -19,14 +31,12 @@ export default {
       return unauthorized();
     }
 
-    const handle = await createServer(env);
+    const handle = await createServer(env, getDeps(env));
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined
     });
     await handle.raw.connect(transport);
 
-    const response = await transport.handleRequest(request);
-    ctx.waitUntil(Promise.resolve());
-    return response;
+    return transport.handleRequest(request);
   }
 };

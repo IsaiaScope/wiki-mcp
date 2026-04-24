@@ -14,9 +14,13 @@ export type ServerHandle = {
   readResource: (uri: string) => Promise<ReadResult>;
 };
 
-export async function createServer(env: Env): Promise<ServerHandle> {
-  const github = new GithubClient(env);
+export type ServerDeps = {
+  github: GithubClient;
+  getSnapshot: () => Promise<Snapshot>;
+};
 
+export function buildDeps(env: Env): ServerDeps {
+  const github = new GithubClient(env);
   let snapshot: Snapshot | null = null;
   const getSnapshot = async () => {
     const tree = await github.fetchTree();
@@ -25,6 +29,11 @@ export async function createServer(env: Env): Promise<ServerHandle> {
     }
     return snapshot;
   };
+  return { github, getSnapshot };
+}
+
+export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerHandle> {
+  const { github, getSnapshot } = deps ?? buildDeps(env);
   await getSnapshot();
 
   const server = new McpServer(
