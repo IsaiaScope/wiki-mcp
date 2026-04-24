@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { buildSnapshot } from "./discover";
-import type { Env } from "./env";
+import { assertEnv, type Env } from "./env";
 import { GithubClient } from "./github";
 import { type ReadResult, type ResourceContext, registerResources } from "./resources";
 import { registerTools, type ToolContext, type ToolResult } from "./tools";
@@ -17,23 +17,38 @@ export type ServerHandle = {
 export type ServerDeps = {
   github: GithubClient;
   getSnapshot: () => Promise<Snapshot>;
+  refresh: () => Promise<Snapshot>;
+  isStale: () => boolean;
 };
 
 export function buildDeps(env: Env): ServerDeps {
+  assertEnv(env);
   const github = new GithubClient(env);
   let snapshot: Snapshot | null = null;
-  const getSnapshot = async () => {
+
+  const refresh = async (): Promise<Snapshot> => {
+    github.invalidate();
     const tree = await github.fetchTree();
-    if (!snapshot || snapshot.sha !== tree.sha) {
-      snapshot = buildSnapshot(tree, env);
-    }
+    snapshot = buildSnapshot(tree, env);
     return snapshot;
   };
-  return { github, getSnapshot };
+
+  const getSnapshot = async (): Promise<Snapshot> => {
+    if (snapshot) return snapshot;
+    // Cold start: must block on the first fetch.
+    const tree = await github.fetchTree();
+    snapshot = buildSnapshot(tree, env);
+    return snapshot;
+  };
+
+  const isStale = (): boolean => !snapshot || github.isStale();
+
+  return { github, getSnapshot, refresh, isStale };
 }
 
 export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerHandle> {
-  const { github, getSnapshot } = deps ?? buildDeps(env);
+  const resolved = deps ?? buildDeps(env);
+  const { github, getSnapshot } = resolved;
   await getSnapshot();
 
   const server = new McpServer(

@@ -60,4 +60,9 @@ export class GithubClient {
   invalidate(): void {
     this.cache = null;
   }
+
+  isStale(): boolean {
+    if (!this.cache) return true;
+    return Date.now() - this.cache.at >= ttlMs(this.env);
+  }
 }

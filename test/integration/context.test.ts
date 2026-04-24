@@ -50,7 +50,7 @@ describe("wiki_context orchestrator", () => {
     expect(fooHit.links_expanded).toContain("personal/wiki/concepts/bar-baz.md");
   });
 
-  it("respects domain filter: work query never returns personal pages", async () => {
+  it("respects domain filter for direct hits (expansions may cross domains)", async () => {
     const env = makeEnv();
     const client = new GithubClient(env);
     const snap = buildSnapshot(await client.fetchTree(), env);
@@ -60,7 +60,28 @@ describe("wiki_context orchestrator", () => {
       client,
       env,
     );
-    expect(bundle.hits.every((h) => h.path.startsWith("work/"))).toBe(true);
+    // Direct hits (reason "direct match") stay in the filtered domain.
+    const directHits = bundle.hits.filter((h) => h.reason === "direct match");
+    expect(directHits.every((h) => h.path.startsWith("work/"))).toBe(true);
+  });
+
+  it("surfaces cross-domain linked pages as expansions even under a domain filter", async () => {
+    const env = makeEnv();
+    const client = new GithubClient(env);
+    const snap = buildSnapshot(await client.fetchTree(), env);
+    const bundle = await buildContext(
+      { question: "Qux", domain: "work", budget_tokens: 4000 },
+      snap,
+      client,
+      env,
+    );
+    // Direct hits stay in work/
+    expect(bundle.hits.some((h) => h.path.startsWith("work/"))).toBe(true);
+    // Qux links to personal/wiki/entities/Foo.md → should surface as expansion
+    const qux = bundle.hits.find((h) => h.path === "work/wiki/entities/Qux.md");
+    expect(qux?.links_expanded).toContain("personal/wiki/entities/Foo.md");
+    // And the linked body should be in the bundle
+    expect(bundle.hits.some((h) => h.path === "personal/wiki/entities/Foo.md")).toBe(true);
   });
 
   it("clamps to budget_tokens and marks truncation", async () => {

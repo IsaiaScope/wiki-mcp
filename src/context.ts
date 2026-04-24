@@ -83,8 +83,9 @@ export async function buildContext(
   let remaining = input.budget_tokens;
 
   for (const path of chosen) {
+    if (remaining <= 0) break;
     const rawBody = bodyByPath.get(path) ?? "";
-    const trunc = truncateAtHeading(rawBody, Math.max(remaining, 0), { path });
+    const trunc = truncateAtHeading(rawBody, remaining, { path });
     const expandedPaths = [...expansions.entries()]
       .filter(([, v]) => v.parent === path)
       .map(([k]) => k);
@@ -96,7 +97,6 @@ export async function buildContext(
       links_expanded: expandedPaths,
     });
     remaining -= estimateTokens(trunc.text);
-    if (remaining <= 0) break;
   }
 
   if (remaining > 0) {

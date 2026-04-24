@@ -116,6 +116,26 @@ const searchSchema = z.object({
   domain: z.string().optional().default("all"),
   limit: z.number().optional().default(10),
 });
+const SNIPPET_MAX_CHARS = 160;
+
+function extractSnippet(body: string): string {
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    if (line.startsWith("---")) continue;
+    if (line.startsWith("[[") && line.endsWith("]]")) continue;
+    return line.length > SNIPPET_MAX_CHARS ? `${line.slice(0, SNIPPET_MAX_CHARS - 1)}…` : line;
+  }
+  // Fallback: first non-empty heading text.
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    const h = line.match(/^#{1,3}\s+(.+)$/);
+    if (h) return h[1];
+  }
+  return "";
+}
+
 async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = searchSchema.safeParse(raw);
   if (!parsed.success) return errorResult(parsed.error.message);
@@ -132,12 +152,29 @@ async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
       }
     }
     const ranked = rankDocs(parsed.data.query, docs).slice(0, parsed.data.limit);
-    const results = ranked.map((r) => ({
-      path: r.id,
-      title: r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id,
-      snippet: "",
-      score: r.score,
-    }));
+
+    // Fetch bodies for top-k only; parallel, tolerant of individual failures.
+    const bodies = await Promise.all(
+      ranked.map(async (r) => {
+        try {
+          return { path: r.id, body: await ctx.github.fetchBody(snap.sha, r.id) };
+        } catch {
+          return { path: r.id, body: "" };
+        }
+      }),
+    );
+    const bodyByPath = new Map(bodies.map((b) => [b.path, b.body]));
+
+    const results = ranked.map((r) => {
+      const body = bodyByPath.get(r.id) ?? "";
+      const parsedPage = body ? parseFrontmatter(body, { pathHint: r.id }) : null;
+      return {
+        path: r.id,
+        title: parsedPage?.title ?? r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id,
+        snippet: parsedPage ? extractSnippet(parsedPage.body) : "",
+        score: r.score,
+      };
+    });
     return { content: [{ type: "text", text: JSON.stringify(results) }] };
   } catch (e) {
     return errorResult((e as Error).message);
