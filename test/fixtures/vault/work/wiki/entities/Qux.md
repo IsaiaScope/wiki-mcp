@@ -5,4 +5,5 @@ domain: [work]
 ---
 
 # Qux
-Colleague.
+
+Colleague. Occasionally crosses paths with [[personal/wiki/entities/Foo]] at shared projects.

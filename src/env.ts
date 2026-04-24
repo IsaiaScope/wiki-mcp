@@ -10,6 +10,27 @@ export type Env = {
   GITHUB_TOKEN: string;
 };
 
+const REQUIRED_KEYS = [
+  "GITHUB_REPO",
+  "GITHUB_BRANCH",
+  "WIKI_SERVER_NAME",
+  "CACHE_TTL_SECONDS",
+  "SCHEMA_GLOBS",
+  "DOMAIN_REQUIRED_FILES",
+  "MCP_BEARER",
+  "GITHUB_TOKEN",
+] as const satisfies ReadonlyArray<keyof Env>;
+
+export function assertEnv(env: Partial<Env>): asserts env is Env {
+  const missing = REQUIRED_KEYS.filter((k) => !env[k]);
+  if (missing.length > 0) {
+    throw new Error(
+      `wiki-mcp misconfigured — missing required env vars/secrets: ${missing.join(", ")}. ` +
+        `Set vars in wrangler.toml [vars] and secrets via 'wrangler secret put'.`,
+    );
+  }
+}
+
 export function parseCsv(value: string): string[] {
   return value
     .split(",")

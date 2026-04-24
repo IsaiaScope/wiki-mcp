@@ -1,3 +1,7 @@
+# Clean macOS AppleDouble metadata (exFAT volumes regenerate them on every
+# file touch — vitest/esbuild choke on the leading NUL bytes).
+find . -name "._*" -not -path "./node_modules/*" -not -path "./.git/*" -delete 2>/dev/null || true
+
 pnpm exec lint-staged
 pnpm exec tsc --noEmit
 pnpm test
