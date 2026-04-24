@@ -81,9 +81,26 @@ function countDomainPages(dom: Domain): number {
   return total;
 }
 
+const INSTRUCTIONS_TITLE_CAP = 50;
+const TOOL_DESC_TITLE_CAP = 30;
+
+function flatTriggerList(vocab: Vocab, cap: number): { included: string[]; omitted: number } {
+  const all = new Set<string>();
+  for (const perType of vocab.values()) {
+    for (const titles of perType.values()) {
+      for (const t of titles) all.add(t);
+    }
+  }
+  const sorted = Array.from(all).sort((a, b) => a.localeCompare(b));
+  return {
+    included: sorted.slice(0, cap),
+    omitted: Math.max(0, sorted.length - cap),
+  };
+}
+
 function buildInstructions(
   snapshot: Snapshot,
-  _vocab: Vocab,
+  vocab: Vocab,
   env: Env,
   mode: PrimeVocabMode,
   greeting: string,
@@ -123,19 +140,37 @@ function buildInstructions(
     parts.push(
       "Call wiki_context before answering questions that may involve this wiki. Cite with [[path]]. Read wiki://overview for the full page inventory. Never invent sources or pages not present in the wiki.",
     );
+
+    if (mode === "full") {
+      const { included, omitted } = flatTriggerList(vocab, INSTRUCTIONS_TITLE_CAP);
+      if (included.length > 0) {
+        const suffix = omitted > 0 ? ` and ${omitted} more` : "";
+        parts.push(`Trigger vocabulary: ${included.join(", ")}${suffix}.`);
+      }
+    }
   }
 
   return parts.join("\n\n");
 }
 
-function buildToolDescriptions(_vocab: Vocab, mode: PrimeVocabMode): Record<ToolName, string> {
+function buildToolDescriptions(vocab: Vocab, mode: PrimeVocabMode): Record<ToolName, string> {
   if (mode === "off") return { ...STATIC_TOOL_DESCRIPTIONS };
 
-  const contextTail =
+  const baseTail =
     " Read wiki://overview for the current page inventory before deciding between wiki_context, wiki_search, and wiki_fetch.";
 
+  let contextDesc = STATIC_TOOL_DESCRIPTIONS.wiki_context + baseTail;
+
+  if (mode === "full") {
+    const { included, omitted } = flatTriggerList(vocab, TOOL_DESC_TITLE_CAP);
+    if (included.length > 0) {
+      const suffix = omitted > 0 ? ` and ${omitted} more` : "";
+      contextDesc += ` Trigger vocabulary: ${included.join(", ")}${suffix}.`;
+    }
+  }
+
   return {
-    wiki_context: STATIC_TOOL_DESCRIPTIONS.wiki_context + contextTail,
+    wiki_context: contextDesc,
     wiki_search: STATIC_TOOL_DESCRIPTIONS.wiki_search,
     wiki_fetch: STATIC_TOOL_DESCRIPTIONS.wiki_fetch,
     wiki_list: STATIC_TOOL_DESCRIPTIONS.wiki_list,

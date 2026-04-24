@@ -131,3 +131,58 @@ describe("buildPrime — structural (default)", () => {
     );
   });
 });
+
+describe("buildPrime — full (opt-in vocab)", () => {
+  it("vocabMode reported as 'full'", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    expect(p.vocabMode).toBe("full");
+  });
+
+  it("instructions contain prettified titles", () => {
+    const snap = makeSnapshot({
+      personal: { entities: ["Fincons S.p.A.", "ccnl-metalmeccanico"] },
+    });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    expect(p.instructions).toContain("Fincons S.p.A.");
+    expect(p.instructions).toContain("CCNL Metalmeccanico");
+  });
+
+  it("wiki_context description contains trigger vocabulary", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo", "Bar"] } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    expect(p.toolDescriptions.wiki_context).toContain("Foo");
+    expect(p.toolDescriptions.wiki_context).toContain("Bar");
+  });
+
+  it("instructions trigger list capped at 50 titles, alphabetical", () => {
+    const many = Array.from({ length: 80 }, (_, i) => `page-${String(i).padStart(3, "0")}`);
+    const snap = makeSnapshot({ personal: { entities: many } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    // alphabetical: page-000 first, page-049 last of included
+    expect(p.instructions).toContain("Page 000");
+    expect(p.instructions).toContain("Page 049");
+    expect(p.instructions).not.toContain("Page 050");
+    expect(p.instructions).toMatch(/and \d+ more/);
+  });
+
+  it("tool description trigger list capped at 30 titles", () => {
+    const many = Array.from({ length: 50 }, (_, i) => `page-${String(i).padStart(3, "0")}`);
+    const snap = makeSnapshot({ personal: { entities: many } });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    const desc = p.toolDescriptions.wiki_context;
+    expect(desc).toContain("Page 000");
+    expect(desc).toContain("Page 029");
+    expect(desc).not.toContain("Page 030");
+  });
+
+  it("title collision across domains kept once in trigger list (dedupe)", () => {
+    const snap = makeSnapshot({
+      personal: { entities: ["Foo"] },
+      work: { entities: ["Foo"] },
+    });
+    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
+    const occurrences = (p.instructions.match(/Foo/g) ?? []).length;
+    expect(occurrences).toBe(1);
+  });
+});
