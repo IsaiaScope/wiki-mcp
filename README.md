@@ -136,9 +136,24 @@ pnpm fix                   # ultracite fix
 - **husky** + **lint-staged** for pre-commit checks
 - **post-commit hook** auto-bumps `package.json` version (patch by default; `feat:` → minor; `!:` / `BREAKING CHANGE` → major) and amends into the same commit
 
-## CI/CD
+## CI/CD + branch flow
 
-`.github/workflows/deploy.yml` runs `pnpm typecheck`, `pnpm test`, then `wrangler deploy` on every push to `main`. Set `CLOUDFLARE_API_TOKEN` in repo Settings → Secrets → Actions.
+Two protected branches, no direct pushes allowed on either:
+
+- **`dev`** — default branch, integration target for all feature work. PRs into `dev` must pass the `test` job (typecheck + vitest).
+- **`prod`** — release branch. PR merges from `dev` trigger deploy to Cloudflare Workers. PRs into `prod` must also pass `test`.
+
+```
+  feature branch ──PR──► dev (CI: test) ──PR──► prod (CI: test + deploy)
+```
+
+`.github/workflows/deploy.yml`:
+- `pull_request` on `dev` or `prod` → runs `pnpm typecheck` + `pnpm test`
+- `push` to `prod` (happens only via PR merge) → runs tests then `wrangler deploy`
+
+Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (scoped to Workers deploy only).
+
+Protection rules on both branches: require PR, require `test` check, no force push, no deletion, admins enforced.
 
 ## Architecture
 
