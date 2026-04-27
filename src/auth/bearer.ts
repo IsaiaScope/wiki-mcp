@@ -22,8 +22,11 @@ function constantTimeEqual(a: string, b: string): boolean {
 }
 
 export function unauthorized(): Response {
-  return new Response("Unauthorized", {
+  return new Response(JSON.stringify({ error: "unauthorized" }), {
     status: 401,
-    headers: { "WWW-Authenticate": "Bearer" },
+    headers: {
+      "WWW-Authenticate": 'Bearer realm="wiki-mcp"',
+      "Content-Type": "application/json",
+    },
   });
 }

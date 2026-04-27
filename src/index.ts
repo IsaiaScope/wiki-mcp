@@ -24,8 +24,22 @@ export default {
       return Response.json({ ok: true, at: new Date().toISOString() });
     }
 
+    // OAuth discovery probes from MCP clients (RFC 9728 / MCP 2025-06-18).
+    // We do not run an OAuth server — bearer-only auth. Return a JSON 404
+    // so SDKs can parse it and fall back to the static Authorization header
+    // configured by the client.
+    if (
+      url.pathname === "/.well-known/oauth-protected-resource" ||
+      url.pathname === "/.well-known/oauth-authorization-server"
+    ) {
+      return Response.json(
+        { error: "not_found", reason: "wiki-mcp uses static bearer auth, not OAuth" },
+        { status: 404 },
+      );
+    }
+
     if (url.pathname !== "/mcp") {
-      return new Response("not found", { status: 404 });
+      return Response.json({ error: "not_found", path: url.pathname }, { status: 404 });
     }
 
     if (!checkBearer(request, { primary: env.MCP_BEARER, next: env.MCP_BEARER_NEXT })) {
