@@ -5,9 +5,11 @@ on:
     branches: [dev, prod]
   push:
     # Direct pushes are blocked by branch protection on dev/prod, so the only
-    # way this fires is when a PR is merged into prod — which is what we want
-    # to trigger deploy.
-    branches: [prod]
+    # way this fires is when a PR is merged. Each merge target triggers the
+    # corresponding deploy:
+    #   - merge into dev  -> deploy-dev  (wiki-mcp-dev worker)
+    #   - merge into prod -> deploy      (wiki-mcp worker)
+    branches: [dev, prod]
   workflow_dispatch:
 
 concurrency:
@@ -33,11 +35,12 @@ jobs:
 
       - run: pnpm test
 
-  deploy:
+  deploy-dev:
     needs: test
-    # Deploy only when the event is a push to prod (i.e. PR merged into prod).
-    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    # Fires on push to dev (i.e. PR merged into dev).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    environment: dev
     steps:
       - uses: actions/checkout@v6
 
@@ -50,7 +53,32 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy to Cloudflare Workers (dev environment)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          packageManager: pnpm
+          command: deploy --env dev
+
+  deploy:
+    needs: test
+    # Fires on push to prod (i.e. PR merged into prod).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Cloudflare Workers (prod)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
