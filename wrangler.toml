@@ -13,11 +13,15 @@ SCHEMA_GLOBS = "CLAUDE.md,*/CLAUDE.md,docs/llm-wiki.md"
 DOMAIN_REQUIRED_FILES = "index.md,log.md"
 MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
+WIKI_PRIME_VOCAB = "structural"
+WIKI_PRIME_GREETING = ""
 
 # Dev environment. `wrangler deploy --env dev` ships this.
 # Worker URL: https://wiki-mcp-dev.<account-subdomain>.workers.dev
 # CI fires this on push to the `dev` branch (i.e. PR merged into dev).
 # Wrangler does NOT inherit [vars] into [env.X] — duplicate explicitly.
+# Dev uses `WIKI_PRIME_VOCAB="full"` for max trigger signal during testing;
+# leak surface is acceptable on a non-shared test worker.
 [env.dev]
 name = "wiki-mcp-dev"
 
@@ -30,3 +34,5 @@ SCHEMA_GLOBS = "CLAUDE.md,*/CLAUDE.md,docs/llm-wiki.md"
 DOMAIN_REQUIRED_FILES = "index.md,log.md"
 MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
+WIKI_PRIME_VOCAB = "full"
+WIKI_PRIME_GREETING = "DEV environment for wikionfire — testing only, vocab=full"
