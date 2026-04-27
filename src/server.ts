@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import pkg from "../package.json";
 import { assertEnv, type Env } from "./env";
 import { GithubClient } from "./github";
 import {
@@ -82,7 +83,7 @@ export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerH
   const prime = await getPrime();
 
   const server = new McpServer(
-    { name: env.WIKI_SERVER_NAME, version: "0.1.0" },
+    { name: env.WIKI_SERVER_NAME, version: pkg.version },
     { instructions: prime.instructions },
   );
 
