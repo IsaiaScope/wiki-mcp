@@ -42,6 +42,24 @@ describe("MCP tools", () => {
     expect(parsed[0]).toHaveProperty("score");
   });
 
+  it("wiki_search re-ranks via body — finds tag/body matches absent from path", async () => {
+    const server = await createServer(makeEnv());
+    // "sample" exists only in frontmatter tags + body, never in path
+    const result = await server.callTool("wiki_search", { query: "sample", limit: 5 });
+    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
+    const paths = parsed.map((p) => p.path);
+    expect(paths).toContain("personal/wiki/entities/Foo.md");
+  });
+
+  it("wiki_search finds page via frontmatter alias", async () => {
+    const server = await createServer(makeEnv());
+    // Foo.md frontmatter declares aliases: [Fooable]
+    const result = await server.callTool("wiki_search", { query: "Fooable", limit: 5 });
+    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
+    const paths = parsed.map((p) => p.path);
+    expect(paths).toContain("personal/wiki/entities/Foo.md");
+  });
+
   it("wiki_fetch returns bodies by path", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_fetch", {

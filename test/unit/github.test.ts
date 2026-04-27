@@ -66,6 +66,35 @@ describe("GithubClient", () => {
     expect(body).toBe("# Foo\nbody here");
   });
 
+  it("caches fetchBody by sha+path within TTL", async () => {
+    fetchSpy.mockResolvedValue(new Response("body-v1"));
+    const client = new GithubClient(makeEnv({ CACHE_TTL_SECONDS: "60" }));
+    await client.fetchBody("abc", "p.md");
+    await client.fetchBody("abc", "p.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetchBody cache distinguishes by sha", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("v1"));
+    fetchSpy.mockResolvedValueOnce(new Response("v2"));
+    const client = new GithubClient(makeEnv());
+    const a = await client.fetchBody("sha-a", "p.md");
+    const b = await client.fetchBody("sha-b", "p.md");
+    expect(a).toBe("v1");
+    expect(b).toBe("v2");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("invalidate() drops body cache", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response("v1"));
+    fetchSpy.mockResolvedValueOnce(new Response("v2"));
+    const client = new GithubClient(makeEnv());
+    await client.fetchBody("abc", "p.md");
+    client.invalidate();
+    await client.fetchBody("abc", "p.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("throws on non-OK tree response", async () => {
     fetchSpy.mockResolvedValue(new Response("boom", { status: 500 }));
     const client = new GithubClient(makeEnv());
