@@ -28,6 +28,11 @@ MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
 WIKI_PRIME_VOCAB = "structural"
 WIKI_PRIME_GREETING = ""
+# Optional knobs — values mirror code defaults; declared here so every active
+# config is visible in one place rather than hidden in src/.
+SENSITIVE_FRONTMATTER_KEYS = ""
+SKIP_TOP_DIRS = ".git,.github,docs,mcp,node_modules,.obsidian,.trash"
+BODY_CACHE_MAX = "800"
 
 # Workers Logs — emits console.log / unhandled exceptions to the Cloudflare
 # dashboard. Without this, MCP clients only see opaque transport errors and
@@ -62,6 +67,9 @@ MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
 WIKI_PRIME_VOCAB = "full"
 WIKI_PRIME_GREETING = "DEV environment for wikionfire — testing only, vocab=full"
+SENSITIVE_FRONTMATTER_KEYS = ""
+SKIP_TOP_DIRS = ".git,.github,docs,mcp,node_modules,.obsidian,.trash"
+BODY_CACHE_MAX = "800"
 
 [env.dev.observability]
 enabled = true
