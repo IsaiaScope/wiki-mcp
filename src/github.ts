@@ -57,6 +57,33 @@ export class GithubClient {
     return await res.text();
   }
 
+  private contentsUrl(path: string): string {
+    const [owner, repo] = this.env.GITHUB_REPO.split("/");
+    const encoded = path
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/");
+    return `https://api.github.com/repos/${owner}/${repo}/contents/${encoded}`;
+  }
+
+  async fetchFileSha(path: string): Promise<string | null> {
+    const url = `${this.contentsUrl(path)}?ref=${encodeURIComponent(this.env.GITHUB_BRANCH)}`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${this.env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "wiki-mcp",
+      },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`GitHub contents GET failed for ${path}: ${res.status}`);
+    }
+    const body = (await res.json()) as { sha?: string };
+    return body.sha ?? null;
+  }
+
   invalidate(): void {
     this.cache = null;
   }

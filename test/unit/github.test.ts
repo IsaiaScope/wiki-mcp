@@ -71,4 +71,40 @@ describe("GithubClient", () => {
     const client = new GithubClient(makeEnv());
     await expect(client.fetchTree()).rejects.toThrow(/GitHub tree fetch failed: 500/);
   });
+
+  it("fetchFileSha returns sha when file exists", async () => {
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify({ sha: "deadbeef", path: "personal/raw/a.pdf" }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = new GithubClient(makeEnv());
+    const sha = await client.fetchFileSha("personal/raw/a.pdf");
+    expect(sha).toBe("deadbeef");
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(String(url)).toContain("/repos/fake/wiki/contents/personal/raw/a.pdf");
+    expect(String(url)).toContain("ref=main");
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer test-pat" });
+  });
+
+  it("fetchFileSha returns null on 404", async () => {
+    fetchSpy.mockResolvedValue(new Response("not found", { status: 404 }));
+    const client = new GithubClient(makeEnv());
+    const sha = await client.fetchFileSha("personal/raw/missing.pdf");
+    expect(sha).toBeNull();
+  });
+
+  it("fetchFileSha throws on 500", async () => {
+    fetchSpy.mockResolvedValue(new Response("boom", { status: 500 }));
+    const client = new GithubClient(makeEnv());
+    await expect(client.fetchFileSha("personal/raw/x.pdf")).rejects.toThrow(/500/);
+  });
+
+  it("fetchFileSha percent-encodes path segments", async () => {
+    fetchSpy.mockResolvedValue(new Response("not found", { status: 404 }));
+    const client = new GithubClient(makeEnv());
+    await client.fetchFileSha("personal/raw/docs/Foo Bar.pdf");
+    const [url] = fetchSpy.mock.calls[0];
+    expect(String(url)).toContain("/contents/personal/raw/docs/Foo%20Bar.pdf");
+  });
 });
