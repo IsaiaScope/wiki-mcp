@@ -1,7 +1,19 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+
 name = "wiki-mcp"
 main = "src/index.ts"
 compatibility_date = "2026-04-24"
 compatibility_flags = ["nodejs_compat"]
+
+# Source maps make runtime stack traces point to .ts files instead of the
+# bundled output — critical for diagnosing MCP failures from the agent side.
+upload_source_maps = true
+
+# Required secrets (set via `wrangler secret put <NAME>` per env, never in this file):
+#   - MCP_BEARER       static bearer token clients send in Authorization header
+#   - MCP_BEARER_NEXT  optional rotation slot, accepted alongside MCP_BEARER
+#   - GITHUB_TOKEN     PAT with contents:read (and contents:write for wiki_upload)
+# For local dev: place the same keys in `.dev.vars` (gitignored).
 
 # Default environment = production. `wrangler deploy` (no flag) ships this.
 # Worker URL: https://wiki-mcp.<account-subdomain>.workers.dev
@@ -16,11 +28,28 @@ MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
 WIKI_PRIME_VOCAB = "structural"
 WIKI_PRIME_GREETING = ""
+# Optional knobs — values mirror code defaults; declared here so every active
+# config is visible in one place rather than hidden in src/.
+SENSITIVE_FRONTMATTER_KEYS = ""
+SKIP_TOP_DIRS = ".git,.github,docs,mcp,node_modules,.obsidian,.trash"
+BODY_CACHE_MAX = "800"
+
+# Workers Logs — emits console.log / unhandled exceptions to the Cloudflare
+# dashboard. Without this, MCP clients only see opaque transport errors and
+# you cannot tell whether the failure is auth, GitHub, or runtime.
+[observability]
+enabled = true
+head_sampling_rate = 1
 
 # Dev environment. `wrangler deploy --env dev` ships this.
 # Worker URL: https://wiki-mcp-dev.<account-subdomain>.workers.dev
 # CI fires this on push to the `dev` branch (i.e. PR merged into dev).
-# Wrangler does NOT inherit [vars] into [env.X] — duplicate explicitly.
+#
+# IMPORTANT: `[env.X]` does NOT inherit `compatibility_flags`, `[vars]`, or
+# bindings from the root. Anything the prod environment needs must be
+# duplicated explicitly here, or dev silently drifts (e.g. nodejs_compat
+# missing on dev = `Buffer is not defined` even after root is fixed).
+#
 # Dev uses `WIKI_PRIME_VOCAB="full"` for max trigger signal during testing;
 # leak surface is acceptable on a non-shared test worker.
 [env.dev]
@@ -38,3 +67,10 @@ MAX_UPLOAD_BYTES = "26214400"
 RAW_FOLDER = "raw"
 WIKI_PRIME_VOCAB = "full"
 WIKI_PRIME_GREETING = "DEV environment for wikionfire — testing only, vocab=full"
+SENSITIVE_FRONTMATTER_KEYS = ""
+SKIP_TOP_DIRS = ".git,.github,docs,mcp,node_modules,.obsidian,.trash"
+BODY_CACHE_MAX = "800"
+
+[env.dev.observability]
+enabled = true
+head_sampling_rate = 1
