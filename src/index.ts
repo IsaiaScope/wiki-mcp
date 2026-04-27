@@ -57,6 +57,16 @@ export default {
       return unauthorized(`${url.origin}/.well-known/oauth-protected-resource`);
     }
 
+    // Stateless transport (sessionIdGenerator: undefined) cannot serve the
+    // optional GET-SSE listening channel: the SDK opens an unbounded
+    // ReadableStream with no writer, which Workers cancels as a "hung
+    // request" after a few ms. Reject GET up-front so MCP clients (e.g.
+    // Claude Code) immediately fall back to POST JSON-RPC instead of
+    // looping on cancelled SSE attempts.
+    if (request.method === "GET") {
+      return new Response(null, { status: 405, headers: { Allow: "POST, DELETE" } });
+    }
+
     const deps = getDeps(env);
 
     // Stale-while-revalidate: if snapshot is older than TTL, schedule a
