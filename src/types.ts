@@ -51,7 +51,7 @@ export type GithubTreeEntry = {
 
 export type PrimeVocabMode = "structural" | "full" | "off";
 
-export type ToolName = "wiki_context" | "wiki_search" | "wiki_fetch" | "wiki_list";
+export type ToolName = "wiki_context" | "wiki_search" | "wiki_fetch" | "wiki_list" | "wiki_upload";
 
 export type PrimeBundle = {
   instructions: string;

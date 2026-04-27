@@ -12,10 +12,16 @@ describe("MCP tools", () => {
     globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
   });
 
-  it("tools/list returns four tools", async () => {
+  it("tools/list returns five tools", async () => {
     const server = await createServer(makeEnv());
     const names = server.listToolNames();
-    expect(names.sort()).toEqual(["wiki_context", "wiki_fetch", "wiki_list", "wiki_search"]);
+    expect(names.sort()).toEqual([
+      "wiki_context",
+      "wiki_fetch",
+      "wiki_list",
+      "wiki_search",
+      "wiki_upload",
+    ]);
   });
 
   it("wiki_context returns JSON bundle text", async () => {
@@ -58,6 +64,38 @@ describe("MCP tools", () => {
     const server = await createServer(makeEnv());
     const paths = Array.from({ length: 21 }, (_, i) => `p${i}.md`);
     const result = await server.callTool("wiki_fetch", { paths });
+    expect(result.isError).toBe(true);
+  });
+
+  it("wiki_upload rejects unknown domain", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_upload", {
+      domain: "bogus",
+      subpath: "a.pdf",
+      content_base64: "Zm9v",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/unknown domain 'bogus'/);
+  });
+
+  it("wiki_upload rejects malformed subpath", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_upload", {
+      domain: "personal",
+      subpath: "../evil.pdf",
+      content_base64: "Zm9v",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/traversal/);
+  });
+
+  it("wiki_upload rejects empty content", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_upload", {
+      domain: "personal",
+      subpath: "a.pdf",
+      content_base64: "",
+    });
     expect(result.isError).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import { parseFrontmatter } from "./frontmatter";
 import type { GithubClient } from "./github";
 import { rankDocs } from "./rank";
 import type { PrimeBundle, Snapshot } from "./types";
+import { uploadFile } from "./upload";
 
 export type ToolContext = {
   env: Env;
@@ -79,6 +80,22 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
     async (args) => wikiListHandler(args, ctx),
   );
   table.set("wiki_list", (raw) => wikiListHandler(raw, ctx));
+
+  server.registerTool(
+    "wiki_upload",
+    {
+      description: ctx.prime.toolDescriptions.wiki_upload,
+      inputSchema: {
+        domain: z.string(),
+        subpath: z.string(),
+        content_base64: z.string(),
+        message: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: false },
+    },
+    async (args) => wikiUploadHandler(args, ctx),
+  );
+  table.set("wiki_upload", (raw) => wikiUploadHandler(raw, ctx));
 
   return {
     names: () => [...table.keys()],
@@ -225,6 +242,24 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
       }
     }
     return { content: [{ type: "text", text: JSON.stringify(items) }] };
+  } catch (e) {
+    return errorResult((e as Error).message);
+  }
+}
+
+const uploadSchema = z.object({
+  domain: z.string(),
+  subpath: z.string(),
+  content_base64: z.string(),
+  message: z.string().optional(),
+});
+async function wikiUploadHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
+  const parsed = uploadSchema.safeParse(raw);
+  if (!parsed.success) return errorResult(`invalid input: ${parsed.error.message}`);
+  try {
+    const snap = await ctx.getSnapshot();
+    const result = await uploadFile(parsed.data, snap, ctx.github, ctx.env);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
