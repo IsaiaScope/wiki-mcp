@@ -1,15 +1,16 @@
 # wiki-mcp
 
-Read-only Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy pattern](https://karpathy.bearblog.dev)) to Claude clients. Runs free on Cloudflare Workers. Code is decoupled from any specific wiki — point it at your own private GitHub repo and deploy your own worker.
+Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy pattern](https://karpathy.bearblog.dev)) to Claude clients. Read access for the four primary tools, plus a single write path (`wiki_upload`) that commits arbitrary files into the wiki repo. Runs free on Cloudflare Workers. Code is decoupled from any specific wiki — point it at your own private GitHub repo and deploy your own worker.
 
 ## What it does
 
-Exposes four MCP tools:
+Exposes five MCP tools:
 
 - **`wiki_context(question, domain?, budget_tokens?)`** — primary tool; one call returns schema + indexes + recent log + ranked hits + one-hop wikilink expansion.
 - **`wiki_search(query, domain?, limit?)`** — explicit ranked keyword search.
 - **`wiki_fetch(paths[])`** — batch read pages by exact path (max 20).
 - **`wiki_list(domain?, type?)`** — structured directory listing.
+- **`wiki_upload(domain, subpath, content_base64, message?)`** — upload any file (PDF, image, text, binary) to `{domain}/raw/{subpath}` in the wiki repo. Stored as-is, no transformation. Max 25 MB. Requires `contents:write` on the GitHub PAT.
 
 And four resources:
 
@@ -61,7 +62,7 @@ Requires pnpm 10+ and Node 20+.
 1. github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new.
 2. Resource owner: your user.
 3. Repository access: **only** the wiki repo.
-4. Permissions → Repository permissions → **Contents: Read-only**.
+4. Permissions → Repository permissions → **Contents: Read and write** (write is required by `wiki_upload`; leave at read-only if you do not plan to use that tool).
 5. Expiration: 1 year. Copy the token (shown once).
 
 ## Add the connector to Claude clients
@@ -112,9 +113,11 @@ Everything is env-driven. Fork this repo and point it at your wiki — no code c
 | `CACHE_TTL_SECONDS` | `wrangler.toml [vars]` | Snapshot cache TTL (default `60`) |
 | `SCHEMA_GLOBS` | `wrangler.toml [vars]` | Comma-list of schema file globs |
 | `DOMAIN_REQUIRED_FILES` | `wrangler.toml [vars]` | Files that mark a dir as a domain |
+| `MAX_UPLOAD_BYTES` | `wrangler.toml [vars]` | Max upload size in bytes (default `26214400` = 25 MB) |
+| `RAW_FOLDER` | `wrangler.toml [vars]` | Subfolder under each domain for `wiki_upload` writes (default `raw`) |
 | `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
 | `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
-| `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT, `contents:read` |
+| `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT — `contents:read` minimum, `contents:write` if you use `wiki_upload` |
 | `WIKI_PRIME_VOCAB` | `wrangler.toml [vars]` | Priming privacy mode: `structural` (default, no titles in instructions/tools), `full` (titles injected, capped), `off` (minimal) |
 | `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
 
