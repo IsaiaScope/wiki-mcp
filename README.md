@@ -165,20 +165,37 @@ pnpm fix                   # ultracite fix
 
 ## CI/CD + branch flow
 
-Two protected branches, no direct pushes allowed on either:
+Two protected branches, no direct pushes. Each branch maps to its own Cloudflare Workers environment.
 
-- **`dev`** — default branch, integration target for all feature work. PRs into `dev` must pass the `test` job (typecheck + vitest).
-- **`prod`** — release branch. PR merges from `dev` trigger deploy to Cloudflare Workers. PRs into `prod` must also pass `test`.
+| Branch | Worker name | Worker URL | Triggered by |
+|---|---|---|---|
+| `dev` | `wiki-mcp-dev` | `https://wiki-mcp-dev.<subdomain>.workers.dev` | PR merge into `dev` |
+| `prod` | `wiki-mcp` | `https://wiki-mcp.<subdomain>.workers.dev` | PR merge into `prod` |
 
 ```
-  feature branch ──PR──► dev (CI: test) ──PR──► prod (CI: test + deploy)
+  feature branch ──PR──► dev (CI: test + deploy-dev) ──PR──► prod (CI: test + deploy)
 ```
 
 `.github/workflows/deploy.yml`:
 - `pull_request` on `dev` or `prod` → runs `pnpm typecheck` + `pnpm test`
-- `push` to `prod` (happens only via PR merge) → runs tests then `wrangler deploy`
+- `push` to `dev` (PR merge into dev) → runs tests then `wrangler deploy --env dev` to the `wiki-mcp-dev` worker
+- `push` to `prod` (PR merge into prod) → runs tests then `wrangler deploy` to the `wiki-mcp` worker
 
-Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (scoped to Workers deploy only).
+Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (single token covers both workers — same Cloudflare account).
+
+Per-environment secrets are independent — set them once each before first deploy:
+
+```bash
+# Production
+pnpm exec wrangler secret put MCP_BEARER
+pnpm exec wrangler secret put GITHUB_TOKEN
+
+# Dev (separate worker, separate secrets)
+pnpm exec wrangler secret put MCP_BEARER --env dev
+pnpm exec wrangler secret put GITHUB_TOKEN --env dev
+```
+
+Use a different `MCP_BEARER` per environment so a leaked dev token can't read prod and vice versa.
 
 Protection rules on both branches: require PR, require `test` check, no force push, no deletion, admins enforced.
 
