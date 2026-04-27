@@ -75,6 +75,9 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
       inputSchema: {
         domain: z.string().optional(),
         type: z.string().optional(),
+        tag: z.string().optional(),
+        entity: z.string().optional(),
+        concept: z.string().optional(),
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -279,6 +282,9 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
 const listSchema = z.object({
   domain: z.string().optional(),
   type: z.string().optional(),
+  tag: z.string().optional(),
+  entity: z.string().optional(),
+  concept: z.string().optional(),
 });
 async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = listSchema.safeParse(raw);
@@ -296,10 +302,44 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
         }
       }
     }
-    return { content: [{ type: "text", text: JSON.stringify(items) }] };
+
+    const needsFrontmatter = !!(parsed.data.tag || parsed.data.entity || parsed.data.concept);
+    if (!needsFrontmatter) {
+      return { content: [{ type: "text", text: JSON.stringify(items) }] };
+    }
+
+    // Lazy frontmatter index — body cache amortizes repeat calls.
+    const fmByPath = new Map<string, Record<string, unknown>>();
+    await Promise.all(
+      items.map(async (it) => {
+        try {
+          const body = await ctx.github.fetchBody(snap.sha, it.path);
+          fmByPath.set(it.path, parseFrontmatter(body, { pathHint: it.path }).data);
+        } catch {
+          fmByPath.set(it.path, {});
+        }
+      }),
+    );
+
+    const filtered = items.filter((it) => {
+      const fm = fmByPath.get(it.path) ?? {};
+      if (parsed.data.tag && !asStringArray(fm.tags).includes(parsed.data.tag)) return false;
+      if (parsed.data.entity && !asStringArray(fm.entities).includes(parsed.data.entity))
+        return false;
+      if (parsed.data.concept && !asStringArray(fm.concepts).includes(parsed.data.concept))
+        return false;
+      return true;
+    });
+
+    return { content: [{ type: "text", text: JSON.stringify(filtered) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === "string");
 }
 
 const uploadSchema = z.object({

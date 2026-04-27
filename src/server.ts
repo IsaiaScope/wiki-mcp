@@ -4,6 +4,7 @@ import { GithubClient } from "./github";
 import {
   type ReadResult,
   type ResourceContext,
+  registerPrompts,
   registerResources,
   registerTools,
   type ToolContext,
@@ -88,6 +89,7 @@ export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerH
   const ctx: ToolContext & ResourceContext = { env, github, getSnapshot, getPrime, prime };
   const tools = registerTools(server, ctx);
   const resources = registerResources(server, ctx);
+  registerPrompts(server, { getSnapshot });
 
   return {
     raw: server,

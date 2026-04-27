@@ -3,7 +3,7 @@ import { parseCsv } from "../env";
 import type { TreeResponse } from "../github";
 import type { Domain, Snapshot } from "../types";
 
-const SKIP_TOP_DIRS = new Set([
+const DEFAULT_SKIP_TOP_DIRS = [
   ".git",
   ".github",
   "docs",
@@ -11,11 +11,12 @@ const SKIP_TOP_DIRS = new Set([
   "node_modules",
   ".obsidian",
   ".trash",
-]);
+];
 
 export function buildSnapshot(tree: TreeResponse, env: Env): Snapshot {
   const requiredFiles = parseCsv(env.DOMAIN_REQUIRED_FILES);
   const schemaGlobs = parseCsv(env.SCHEMA_GLOBS);
+  const skipDirs = resolveSkipDirs(env);
 
   const allPaths = tree.tree.filter((e) => e.type === "blob").map((e) => e.path);
 
@@ -23,7 +24,7 @@ export function buildSnapshot(tree: TreeResponse, env: Env): Snapshot {
   const domains = new Map<string, Domain>();
 
   for (const dir of topDirs) {
-    if (SKIP_TOP_DIRS.has(dir) || dir.startsWith(".")) continue;
+    if (skipDirs.has(dir) || dir.startsWith(".")) continue;
     if (!hasRequiredFiles(dir, requiredFiles, allPaths)) continue;
     if (!allPaths.some((p) => p.startsWith(`${dir}/wiki/`))) continue;
 
@@ -39,6 +40,12 @@ export function buildSnapshot(tree: TreeResponse, env: Env): Snapshot {
     allPaths,
     schemaPaths,
   };
+}
+
+function resolveSkipDirs(env: Env): Set<string> {
+  const raw = (env.SKIP_TOP_DIRS ?? "").trim();
+  if (!raw) return new Set(DEFAULT_SKIP_TOP_DIRS);
+  return new Set(parseCsv(raw));
 }
 
 function collectTopDirs(paths: string[]): Set<string> {

@@ -79,6 +79,22 @@ describe("MCP tools", () => {
     expect(parsed[0]).toHaveProperty("title");
   });
 
+  it("wiki_list filters by frontmatter tag", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_list", { tag: "sample" });
+    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
+    const paths = parsed.map((p) => p.path).sort();
+    // Foo + bar-baz both carry tags: [sample]
+    expect(paths).toEqual(["personal/wiki/concepts/bar-baz.md", "personal/wiki/entities/Foo.md"]);
+  });
+
+  it("wiki_list with unknown tag returns empty array", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_list", { tag: "no-such-tag" });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed).toEqual([]);
+  });
+
   it("wiki_fetch rejects more than 20 paths with isError", async () => {
     const server = await createServer(makeEnv());
     const paths = Array.from({ length: 21 }, (_, i) => `p${i}.md`);
