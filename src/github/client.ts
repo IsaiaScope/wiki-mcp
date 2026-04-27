@@ -72,7 +72,10 @@ export class GithubClient {
     }
     if (cached) this.bodyCache.delete(cacheKey);
     const res = await fetch(this.rawUrl(sha, path), {
-      headers: { "User-Agent": "wiki-mcp" },
+      headers: {
+        Authorization: `Bearer ${this.env.GITHUB_TOKEN}`,
+        "User-Agent": "wiki-mcp",
+      },
     });
     if (!res.ok) {
       throw new Error(`Raw fetch failed for ${path}: ${res.status}`);
@@ -93,7 +96,10 @@ export class GithubClient {
 
   async fetchBytesBase64(sha: string, path: string): Promise<string> {
     const res = await fetch(this.rawUrl(sha, path), {
-      headers: { "User-Agent": "wiki-mcp" },
+      headers: {
+        Authorization: `Bearer ${this.env.GITHUB_TOKEN}`,
+        "User-Agent": "wiki-mcp",
+      },
     });
     if (!res.ok) {
       throw new Error(`Raw fetch failed for ${path}: ${res.status}`);
