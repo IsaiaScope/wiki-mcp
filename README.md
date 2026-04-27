@@ -112,7 +112,7 @@ curl https://wiki-mcp.<your-subdomain>.workers.dev/health
 # => {"ok":true,"at":"..."}
 ```
 
-Requires pnpm 10+ and Node 20+.
+Requires pnpm 10+ and Node 20+. The worker runs with `compatibility_flags = ["nodejs_compat"]` (see `wrangler.toml`) — needed because `gray-matter` uses Node's `Buffer`. `[env.X]` blocks do **not** inherit this flag, so it is duplicated under `[env.dev]`; mirror it in any new environment you add.
 
 ### 🔑 GitHub PAT (fine-grained)
 
@@ -216,14 +216,14 @@ To strip sensitive frontmatter keys at the tool layer regardless of vocab mode, 
 
 ```bash
 pnpm dev                   # wrangler dev, local server on :8787
-pnpm test                  # vitest (194 tests)
+pnpm test                  # vitest (209 tests)
 pnpm test:coverage         # with coverage report
 pnpm typecheck             # tsc --noEmit
 pnpm lint                  # ultracite check (biome under the hood)
 pnpm fix                   # ultracite fix
 ```
 
-**194 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
+**209 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
 ## 🛠️ Tooling
 
@@ -280,6 +280,16 @@ GitHub API + raw.githubusercontent.com   (your private wiki repo)
 ```
 
 Stateless. Fresh `McpServer` per request, 60 s in-memory snapshot cache keyed by commit SHA. Page bodies fetched via SHA-pinned raw URLs — Cloudflare edge cache handles the rest.
+
+### 🌐 HTTP surface
+
+| Method + Path | Auth | Purpose |
+|---------------|------|---------|
+| `GET /health` | none | liveness ping — `{ ok, at }` |
+| `GET /.well-known/oauth-protected-resource` | none | RFC 9728 metadata. Advertises bearer-via-header; satisfies MCP clients that probe before connecting. |
+| `GET /.well-known/oauth-authorization-server` | none | Returns 404 (RFC 8414) — no OAuth AS, bearer-only. |
+| `POST /mcp` | `Authorization: Bearer …` | JSON-RPC 2.0 transport. 401 includes `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource"`. |
+| `GET /mcp` | bearer | Returns `405 Allow: POST, DELETE`. The stateless transport cannot serve the optional GET-SSE channel; rejecting up-front prevents Workers from cancelling hung requests and forces clients to POST. |
 
 ## 📖 Reading
 
