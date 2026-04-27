@@ -9,6 +9,9 @@ export type TreeResponse = {
 };
 
 type CacheEntry = { value: TreeResponse; at: number };
+type BodyCacheEntry = { value: string; at: number };
+
+const BODY_CACHE_MAX = 200;
 
 export type PutFileResult = {
   content_sha: string;
@@ -18,6 +21,7 @@ export type PutFileResult = {
 
 export class GithubClient {
   private cache: CacheEntry | null = null;
+  private bodyCache = new Map<string, BodyCacheEntry>();
 
   constructor(private env: Env) {}
 
@@ -54,13 +58,42 @@ export class GithubClient {
   }
 
   async fetchBody(sha: string, path: string): Promise<string> {
+    const cacheKey = `${sha}:${path}`;
+    const now = Date.now();
+    const ttl = ttlMs(this.env);
+    const cached = this.bodyCache.get(cacheKey);
+    if (cached && now - cached.at < ttl) {
+      return cached.value;
+    }
     const res = await fetch(this.rawUrl(sha, path), {
       headers: { "User-Agent": "wiki-mcp" },
     });
     if (!res.ok) {
       throw new Error(`Raw fetch failed for ${path}: ${res.status}`);
     }
-    return await res.text();
+    const text = await res.text();
+    this.storeBody(cacheKey, text, now);
+    return text;
+  }
+
+  private storeBody(key: string, value: string, at: number): void {
+    if (this.bodyCache.size >= BODY_CACHE_MAX && !this.bodyCache.has(key)) {
+      // simple LRU-ish eviction: drop oldest insertion
+      const first = this.bodyCache.keys().next().value;
+      if (first !== undefined) this.bodyCache.delete(first);
+    }
+    this.bodyCache.set(key, { value, at });
+  }
+
+  async fetchBytesBase64(sha: string, path: string): Promise<string> {
+    const res = await fetch(this.rawUrl(sha, path), {
+      headers: { "User-Agent": "wiki-mcp" },
+    });
+    if (!res.ok) {
+      throw new Error(`Raw fetch failed for ${path}: ${res.status}`);
+    }
+    const ab = await res.arrayBuffer();
+    return arrayBufferToBase64(ab);
   }
 
   private contentsUrl(path: string): string {
@@ -153,10 +186,21 @@ export class GithubClient {
 
   invalidate(): void {
     this.cache = null;
+    this.bodyCache.clear();
   }
 
   isStale(): boolean {
     if (!this.cache) return true;
     return Date.now() - this.cache.at >= ttlMs(this.env);
   }
+}
+
+function arrayBufferToBase64(ab: ArrayBuffer): string {
+  const bytes = new Uint8Array(ab);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.byteLength; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }

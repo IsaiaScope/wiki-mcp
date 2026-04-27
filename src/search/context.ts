@@ -9,12 +9,13 @@ export type ContextInput = {
   question: string;
   domain: "all" | string;
   budget_tokens: number;
+  include_log?: boolean;
 };
 
 const CITATION_INSTRUCTIONS =
   "Cite wiki pages with [[path]] (strip .md). Quote Italian phrases verbatim with an English gloss in square brackets on first mention.";
 const EXPAND_CAP_PER_PAGE = 3;
-const CANDIDATE_MULTIPLIER = 2;
+const CANDIDATE_MULTIPLIER = 3;
 
 export async function buildContext(
   input: ContextInput,
@@ -40,23 +41,7 @@ export async function buildContext(
     topPaths.map(async (p) => ({ path: p, raw: await safeFetch(client, snap.sha, p) })),
   );
 
-  const bodyDocs: RankDoc[] = bodies.map((b) => {
-    const parsed = parseFrontmatter(b.raw, { pathHint: b.path });
-    const tagTerms = extractStringArray(parsed.data.tags);
-    const entityTerms = extractStringArray(parsed.data.entities);
-    const conceptTerms = extractStringArray(parsed.data.concepts);
-    return {
-      id: b.path,
-      text: `${parsed.title} ${parsed.body}`,
-      weightedTerms: [
-        parsed.title,
-        ...tagTerms,
-        ...entityTerms,
-        ...conceptTerms,
-        ...parsed.headings,
-      ],
-    };
-  });
+  const bodyDocs: RankDoc[] = bodies.map((b) => pageRankDoc(b.path, b.raw));
   const bodyHits = rankDocs(input.question, bodyDocs);
   const chosen = (bodyHits.length > 0 ? bodyHits : metaHits).slice(0, candidateK).map((h) => h.id);
 
@@ -120,7 +105,8 @@ export async function buildContext(
 
   const indexes = await readIndexes(snap, client, input.domain);
   const schema = await readSchema(snap, client);
-  const recent_log = await readRecentLog(snap, client, input.domain);
+  const recent_log =
+    input.include_log === false ? [] : await readRecentLog(snap, client, input.domain);
 
   return {
     schema,
@@ -159,6 +145,27 @@ function basename(path: string): string {
 function extractStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v) => typeof v === "string");
+}
+
+export function pageRankDoc(path: string, raw: string): RankDoc {
+  if (!raw) return { id: path, text: pathToText(path), weightedTerms: [basename(path)] };
+  const parsed = parseFrontmatter(raw, { pathHint: path });
+  const tagTerms = extractStringArray(parsed.data.tags);
+  const entityTerms = extractStringArray(parsed.data.entities);
+  const conceptTerms = extractStringArray(parsed.data.concepts);
+  const aliasTerms = extractStringArray(parsed.data.aliases);
+  return {
+    id: path,
+    text: `${parsed.title} ${parsed.body}`,
+    weightedTerms: [
+      parsed.title,
+      ...aliasTerms,
+      ...tagTerms,
+      ...entityTerms,
+      ...conceptTerms,
+      ...parsed.headings,
+    ],
+  };
 }
 
 async function readIndexes(

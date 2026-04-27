@@ -25,6 +25,7 @@ describe("wiki_upload MCP contract", () => {
       "wiki_context",
       "wiki_fetch",
       "wiki_list",
+      "wiki_read_raw",
       "wiki_search",
       "wiki_upload",
     ]);

@@ -41,7 +41,11 @@ export function makeFixtureFetch(fixturesRoot: string) {
     if (m) {
       const path = decodeURIComponent(m[1]);
       const full = `${fixturesRoot}/${path}`;
-      if (existsSync(full)) return new Response(readFileSync(full, "utf8"));
+      if (existsSync(full)) {
+        // Return raw bytes; consumers that want text will utf-8-decode the body.
+        const buf = readFileSync(full);
+        return new Response(new Uint8Array(buf));
+      }
       return new Response("not found", { status: 404 });
     }
 

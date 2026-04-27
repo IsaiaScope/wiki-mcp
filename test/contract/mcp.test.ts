@@ -14,7 +14,7 @@ describe("MCP contract", () => {
     globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
   });
 
-  it("tools/list over real JSON-RPC returns 5 tools with schemas", async () => {
+  it("tools/list over real JSON-RPC returns 6 tools with schemas", async () => {
     const handle = await createServer(makeEnv());
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
     await handle.raw.connect(serverT);
@@ -28,6 +28,7 @@ describe("MCP contract", () => {
       "wiki_context",
       "wiki_fetch",
       "wiki_list",
+      "wiki_read_raw",
       "wiki_search",
       "wiki_upload",
     ]);
@@ -68,6 +69,38 @@ describe("MCP contract", () => {
     expect(uris).toContain("wiki://index/all");
     expect(uris).toContain("wiki://log/recent");
 
+    await client.close();
+  });
+
+  it("prompts/list returns wiki_summary, wiki_recent, wiki_related", async () => {
+    const handle = await createServer(makeEnv());
+    const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+    await handle.raw.connect(serverT);
+
+    const client = new Client({ name: "test", version: "0" }, { capabilities: {} });
+    await client.connect(clientT);
+
+    const list = await client.listPrompts();
+    const names = list.prompts.map((p) => p.name).sort();
+    expect(names).toEqual(["wiki_recent", "wiki_related", "wiki_summary"]);
+    await client.close();
+  });
+
+  it("get_prompt wiki_summary returns user message referencing wiki_context", async () => {
+    const handle = await createServer(makeEnv());
+    const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+    await handle.raw.connect(serverT);
+
+    const client = new Client({ name: "test", version: "0" }, { capabilities: {} });
+    await client.connect(clientT);
+
+    const res = await client.getPrompt({ name: "wiki_summary", arguments: { domain: "personal" } });
+    expect(res.messages.length).toBeGreaterThan(0);
+    const first = res.messages[0];
+    expect(first.role).toBe("user");
+    const text = first.content.type === "text" ? first.content.text : "";
+    expect(text).toMatch(/wiki_context/);
+    expect(text).toMatch(/personal/);
     await client.close();
   });
 

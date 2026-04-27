@@ -88,6 +88,32 @@ describe("buildPrime — structural (default)", () => {
     expect(p.toolDescriptions.wiki_context).toContain("wiki://overview");
   });
 
+  it("tool descriptions disambiguate when-to-use across read tools", () => {
+    const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
+    const p = buildPrime(snap, makeEnv());
+    expect(p.toolDescriptions.wiki_context).toMatch(/PRIMARY|natural-language/);
+    expect(p.toolDescriptions.wiki_search).toMatch(/exact term|phrase/);
+    expect(p.toolDescriptions.wiki_fetch).toMatch(/known paths/);
+    expect(p.toolDescriptions.wiki_list).toMatch(/without fetching bodies|cheapest/i);
+  });
+
+  it("read-tool descriptions append dynamic domain list under structural", () => {
+    const snap = makeSnapshot({
+      personal: { entities: ["Foo"] },
+      work: { entities: ["Qux"] },
+    });
+    const p = buildPrime(snap, makeEnv());
+    for (const name of [
+      "wiki_context",
+      "wiki_search",
+      "wiki_fetch",
+      "wiki_list",
+      "wiki_read_raw",
+    ] as const) {
+      expect(p.toolDescriptions[name]).toContain("Domains: [personal, work]");
+    }
+  });
+
   it("prepends greeting when WIKI_PRIME_GREETING set, trims whitespace", () => {
     const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
     const p = buildPrime(snap, makeEnv({ WIKI_PRIME_GREETING: "  Riva's wiki.  " }));
@@ -202,14 +228,13 @@ describe("buildPrime — off (opt-out)", () => {
     expect(p.instructions).not.toContain("Fincons");
   });
 
-  it("tool descriptions revert to the static strings", () => {
+  it("tool descriptions revert to the static strings (no domain hint, no overview tail)", () => {
     const snap = makeSnapshot({ personal: { entities: ["Foo"] } });
     const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "off" }));
     expect(p.toolDescriptions.wiki_context).not.toContain("wiki://overview");
     expect(p.toolDescriptions.wiki_context).not.toContain("Trigger vocabulary");
-    expect(p.toolDescriptions.wiki_search).toBe(
-      "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
-    );
+    expect(p.toolDescriptions.wiki_search).not.toContain("Domains:");
+    expect(p.toolDescriptions.wiki_search).toContain("two-stage rank");
   });
 
   it("overview bodies note suppression", () => {
