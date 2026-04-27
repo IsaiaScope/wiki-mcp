@@ -58,6 +58,35 @@ describe("buildSnapshot", () => {
     expect(snap.domains.has("docs")).toBe(false);
   });
 
+  it("respects SKIP_TOP_DIRS env override (allowing previously skipped dir)", () => {
+    const tree: TreeResponse = {
+      sha: "z",
+      truncated: false,
+      tree: [
+        { path: "docs/index.md", type: "blob", sha: "a", mode: "100644" },
+        { path: "docs/log.md", type: "blob", sha: "b", mode: "100644" },
+        { path: "docs/wiki/concepts/x.md", type: "blob", sha: "c", mode: "100644" },
+      ],
+    };
+    // Default skip list contains "docs" — explicitly empty override.
+    const snap = buildSnapshot(tree, makeEnv({ SKIP_TOP_DIRS: ".git" }));
+    expect(snap.domains.has("docs")).toBe(true);
+  });
+
+  it("respects SKIP_TOP_DIRS env override (excluding a custom dir)", () => {
+    const tree: TreeResponse = {
+      sha: "z",
+      truncated: false,
+      tree: [
+        { path: "research/index.md", type: "blob", sha: "a", mode: "100644" },
+        { path: "research/log.md", type: "blob", sha: "b", mode: "100644" },
+        { path: "research/wiki/concepts/x.md", type: "blob", sha: "c", mode: "100644" },
+      ],
+    };
+    const snap = buildSnapshot(tree, makeEnv({ SKIP_TOP_DIRS: "research" }));
+    expect(snap.domains.has("research")).toBe(false);
+  });
+
   it("picks up a new domain if its dir has index.md + log.md + wiki/", () => {
     const tree: TreeResponse = {
       sha: "z",

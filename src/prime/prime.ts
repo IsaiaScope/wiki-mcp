@@ -33,14 +33,24 @@ export function prettifyTitle(raw: string): string {
 
 const STATIC_TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   wiki_context:
-    "Return a full knowledge bundle (schema + indexes + log tail + ranked hits + one-hop link expansion) for a question. Primary tool; call this first for wiki-relevant questions.",
+    "PRIMARY tool for natural-language wiki questions. Returns one bundle: schema (CLAUDE.md + llm-wiki conventions) + per-domain indexes + last 50 log entries + ranked page hits with bodies + one-hop wikilink expansions. Use this when you don't know exact paths. Cite hits with [[path]]. Pass include_log=false to skip activity log for privacy.",
   wiki_search:
-    "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
-  wiki_fetch: "Batch read pages by path. Max 20 paths per call.",
-  wiki_list: "List discovered pages, optionally filtered by domain and/or type.",
+    "Keyword search with two-stage rank: path-token shortlist, then body+frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Returns {path,title,snippet,score}. Use when you have an exact term or phrase (quoted phrases supported). Chain with wiki_fetch to read full bodies.",
+  wiki_fetch:
+    "Read full markdown for known paths (max 20 per call). Returns {path,content,frontmatter}. Use after wiki_search/wiki_list/citations surface a path. Unknown paths return per-path error.",
+  wiki_list:
+    "Enumerate discovered pages without fetching bodies. Optional filters: domain, type, tag, entity, concept. Cheapest tool — use to scope before wiki_context.",
   wiki_upload:
-    "Upload a file to the wiki repo at {domain}/raw/{subpath}. Stored as-is, no transformation.",
+    "Upload a file to {domain}/raw/{subpath}. base64 content, 25 MB cap. Stored as-is, no transformation.",
+  wiki_read_raw:
+    "Read a raw file (binary or text) at {domain}/raw/{subpath} as base64. Use after wiki_list surfaces a raw path.",
 };
+
+function appendDomainHint(desc: string, snapshot: Snapshot): string {
+  const domains = [...snapshot.domains.keys()];
+  if (domains.length === 0) return desc;
+  return `${desc} Domains: [${domains.join(", ")}].`;
+}
 
 function buildUploadDescription(snapshot: Snapshot): string {
   const base = STATIC_TOOL_DESCRIPTIONS.wiki_upload;
@@ -184,11 +194,12 @@ function buildToolDescriptions(
   }
 
   return {
-    wiki_context: contextDesc,
-    wiki_search: STATIC_TOOL_DESCRIPTIONS.wiki_search,
-    wiki_fetch: STATIC_TOOL_DESCRIPTIONS.wiki_fetch,
-    wiki_list: STATIC_TOOL_DESCRIPTIONS.wiki_list,
+    wiki_context: appendDomainHint(contextDesc, snapshot),
+    wiki_search: appendDomainHint(STATIC_TOOL_DESCRIPTIONS.wiki_search, snapshot),
+    wiki_fetch: appendDomainHint(STATIC_TOOL_DESCRIPTIONS.wiki_fetch, snapshot),
+    wiki_list: appendDomainHint(STATIC_TOOL_DESCRIPTIONS.wiki_list, snapshot),
     wiki_upload: uploadDesc,
+    wiki_read_raw: appendDomainHint(STATIC_TOOL_DESCRIPTIONS.wiki_read_raw, snapshot),
   };
 }
 

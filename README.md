@@ -20,15 +20,26 @@ Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy patt
 
 Companion to [`wikionfire`](https://github.com/IsaiaScope/wikionfire) but agnostic — it works with any wiki shaped like the Karpathy pattern.
 
-## 🛠️ Five MCP tools
+## 🛠️ Six MCP tools
 
 | | Tool | Purpose | Mode |
 |-|------|---------|------|
-| 🎁 | **`wiki_context(question, domain?, budget_tokens?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion) | read |
-| 🔍 | **`wiki_search(query, domain?, limit?)`** | ranked keyword search with `{path, title, snippet, score}` | read |
-| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20) | read |
-| 🗂️ | **`wiki_list(domain?, type?)`** | structured directory listing | read |
+| 🎁 | **`wiki_context(question, domain?, budget_tokens?, include_log?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion). `include_log=false` suppresses activity log for privacy. | read |
+| 🔍 | **`wiki_search(query, domain?, limit?)`** | two-stage ranked keyword search: path-token shortlist + body/frontmatter re-rank (title, aliases, tags, entities, concepts, headings) | read |
+| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20). Paths must exist in current snapshot. `SENSITIVE_FRONTMATTER_KEYS` env strips listed keys from output. | read |
+| 🗂️ | **`wiki_list(domain?, type?, tag?, entity?, concept?)`** | structured directory listing with optional metadata filters | read |
+| 🧱 | **`wiki_read_raw(path)`** | read a binary or text file under `{domain}/raw/{subpath}` as base64. Path must be in snapshot and live under `raw/`. | read |
 | ⬆️ | **`wiki_upload(domain, subpath, content_base64, message?)`** | upload any file (PDF, image, text, binary) under `{domain}/raw/{subpath}` — 25 MB cap, requires `contents:write` | **write** |
+
+## ✨ Three MCP prompts (slash commands)
+
+Auto-generated from snapshot — clients render as user-invokable shortcuts. Bodies steer the model toward the right tool sequence; they are not themselves answers.
+
+| Prompt | Args | Steers toward |
+|--------|------|---------------|
+| `wiki_summary` | `domain?` | `wiki_context` + `wiki://overview` |
+| `wiki_recent` | `domain?` | `wiki://log/recent` digest |
+| `wiki_related` | `path` | `wiki_fetch` → `wiki_search`/`wiki_list` chain |
 
 ## 📚 Six MCP resources
 
@@ -163,6 +174,8 @@ Everything is env-driven. Fork this repo and point it at your wiki — no code c
 | 📁 | `RAW_FOLDER` | `wrangler.toml [vars]` | Subfolder under each domain for `wiki_upload` (default `raw`) |
 | 🪄 | `WIKI_PRIME_VOCAB` | `wrangler.toml [vars]` | Priming privacy: `structural` (default), `full`, or `off` |
 | 👋 | `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
+| 🚫 | `SENSITIVE_FRONTMATTER_KEYS` | `wrangler.toml [vars]` | CSV of frontmatter keys stripped from `wiki_fetch` output (e.g. `password,api_key`) |
+| 🪟 | `SKIP_TOP_DIRS` | `wrangler.toml [vars]` | CSV override of skipped top-level dirs (default `.git,.github,docs,mcp,node_modules,.obsidian,.trash`) |
 | 🔐 | `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
 | 🔁 | `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
 | 🐙 | `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT — `contents:read` minimum, `contents:write` for `wiki_upload` |
@@ -184,18 +197,32 @@ Two overview resources are always exposed:
 
 See [`src/prime/`](src/prime/) for the full design.
 
+### 🛡️ Leak-surface audit
+
+Privacy mode (`WIKI_PRIME_VOCAB`) controls **priming surfaces** — passive content the server emits without being explicitly called. It does **not** silence tool returns; those always carry the data the agent asked for.
+
+| Surface | `structural` (default) | `full` | `off` |
+|---------|-----------------------|--------|-------|
+| `serverInfo.instructions` | domain names + counts | + 50 prettified titles | minimal one-liner |
+| Tool descriptions | static + domain list + when-to-use | + 30 titles in `wiki_context` | static |
+| `wiki://overview` | domain names + counts | + per-domain title list | suppressed |
+| `wiki://overview/{d}` | full per-domain titles | full | suppressed |
+| Tool returns (hits, snippets, log, frontmatter) | **always full body** | full | full |
+
+To strip sensitive frontmatter keys at the tool layer regardless of vocab mode, set `SENSITIVE_FRONTMATTER_KEYS`. To suppress activity-log inclusion in `wiki_context`, pass `include_log=false`.
+
 ## 🧪 Development
 
 ```bash
 pnpm dev                   # wrangler dev, local server on :8787
-pnpm test                  # vitest (174 tests)
+pnpm test                  # vitest (194 tests)
 pnpm test:coverage         # with coverage report
 pnpm typecheck             # tsc --noEmit
 pnpm lint                  # ultracite check (biome under the hood)
 pnpm fix                   # ultracite fix
 ```
 
-**174 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
+**194 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
 ## 🛠️ Tooling
 

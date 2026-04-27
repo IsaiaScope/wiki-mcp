@@ -84,6 +84,32 @@ describe("wiki_context orchestrator", () => {
     expect(bundle.hits.some((h) => h.path === "personal/wiki/entities/Foo.md")).toBe(true);
   });
 
+  it("include_log=false suppresses recent_log", async () => {
+    const env = makeEnv();
+    const client = new GithubClient(env);
+    const snap = buildSnapshot(await client.fetchTree(), env);
+    const bundle = await buildContext(
+      { question: "Foo", domain: "all", budget_tokens: 4000, include_log: false },
+      snap,
+      client,
+      env,
+    );
+    expect(bundle.recent_log).toEqual([]);
+  });
+
+  it("include_log=true (default) returns recent_log", async () => {
+    const env = makeEnv();
+    const client = new GithubClient(env);
+    const snap = buildSnapshot(await client.fetchTree(), env);
+    const bundle = await buildContext(
+      { question: "Foo", domain: "all", budget_tokens: 4000, include_log: true },
+      snap,
+      client,
+      env,
+    );
+    expect(Array.isArray(bundle.recent_log)).toBe(true);
+  });
+
   it("clamps to budget_tokens and marks truncation", async () => {
     const env = makeEnv();
     const client = new GithubClient(env);

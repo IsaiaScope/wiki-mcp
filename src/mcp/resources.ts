@@ -136,14 +136,19 @@ async function readIndexAll(ctx: ResourceContext): Promise<ReadResult> {
 
 async function readLogRecent(ctx: ResourceContext): Promise<ReadResult> {
   const snap = await ctx.getSnapshot();
-  const lines: string[] = [];
+  const entries: Array<{ line: string; date: string }> = [];
   for (const [, dom] of snap.domains) {
     const body = await safeFetch(ctx, snap.sha, dom.logPath);
     for (const line of body.split("\n")) {
-      if (/^##\s+\[/.test(line)) lines.push(line.trim());
+      const m = line.match(/^##\s+\[([0-9T:\-Z]+)\]/);
+      if (m) entries.push({ line: line.trim(), date: m[1] });
     }
   }
-  const recent = lines.sort().reverse().slice(0, 50).join("\n");
+  const recent = entries
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 50)
+    .map((e) => e.line)
+    .join("\n");
   return { contents: [{ uri: "wiki://log/recent", text: recent }] };
 }
 

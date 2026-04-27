@@ -12,6 +12,8 @@ export type Env = {
   WIKI_PRIME_GREETING?: string;
   MAX_UPLOAD_BYTES?: string;
   RAW_FOLDER?: string;
+  SENSITIVE_FRONTMATTER_KEYS?: string;
+  SKIP_TOP_DIRS?: string;
 };
 
 const REQUIRED_KEYS = [
@@ -74,4 +76,20 @@ export function rawFolder(env: Partial<Env>): string {
   if (!raw) return DEFAULT_RAW_FOLDER;
   if (raw.includes("/") || raw.includes("\\") || raw.includes("..")) return DEFAULT_RAW_FOLDER;
   return raw;
+}
+
+export function sensitiveFrontmatterKeys(env: Partial<Env>): Set<string> {
+  return new Set(parseCsv(env.SENSITIVE_FRONTMATTER_KEYS ?? ""));
+}
+
+export function filterFrontmatter(
+  data: Record<string, unknown>,
+  denylist: Set<string>,
+): Record<string, unknown> {
+  if (denylist.size === 0) return data;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (!denylist.has(k)) out[k] = v;
+  }
+  return out;
 }
