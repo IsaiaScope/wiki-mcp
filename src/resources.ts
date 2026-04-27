@@ -43,15 +43,19 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
       description: "High-level map of discovered domains with per-domain slice URIs",
       mimeType: "text/markdown",
     },
-    async () => ({
-      contents: [{ uri: "wiki://overview", text: ctx.prime.overviewIndex }],
-    }),
+    async () => {
+      const p = await ctx.getPrime();
+      return { contents: [{ uri: "wiki://overview", text: p.overviewIndex }] };
+    },
   );
-  table.set("wiki://overview", async () => ({
-    contents: [{ uri: "wiki://overview", text: ctx.prime.overviewIndex }],
-  }));
+  table.set("wiki://overview", async () => {
+    const p = await ctx.getPrime();
+    return { contents: [{ uri: "wiki://overview", text: p.overviewIndex }] };
+  });
 
-  for (const [dname, body] of ctx.prime.overviewByDomain) {
+  // Pre-enumerate slices using the current prime so resources/list reflects the
+  // known domain set. Handlers re-read prime at request time for freshness.
+  for (const dname of ctx.prime.overviewByDomain.keys()) {
     const uri = `wiki://overview/${dname}`;
     server.registerResource(
       `overview-${dname}`,
@@ -60,9 +64,17 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
         description: `Overview of the ${dname} domain`,
         mimeType: "text/markdown",
       },
-      async () => ({ contents: [{ uri, text: body }] }),
+      async () => {
+        const p = await ctx.getPrime();
+        const body = p.overviewByDomain.get(dname) ?? "";
+        return { contents: [{ uri, text: body }] };
+      },
     );
-    table.set(uri, async () => ({ contents: [{ uri, text: body }] }));
+    table.set(uri, async () => {
+      const p = await ctx.getPrime();
+      const body = p.overviewByDomain.get(dname) ?? "";
+      return { contents: [{ uri, text: body }] };
+    });
   }
 
   server.registerResource(
@@ -91,7 +103,8 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
         );
       const overviewMatch = uri.match(/^wiki:\/\/overview\/(.+)$/);
       if (overviewMatch) {
-        const known = Array.from(ctx.prime.overviewByDomain.keys()).join(", ") || "(none)";
+        const p = await ctx.getPrime();
+        const known = Array.from(p.overviewByDomain.keys()).join(", ") || "(none)";
         throw new Error(
           `Unknown domain in overview URI: ${overviewMatch[1]}. Known domains: ${known}`,
         );

@@ -11,6 +11,7 @@ export type ToolContext = {
   env: Env;
   github: GithubClient;
   getSnapshot: () => Promise<Snapshot>;
+  getPrime: () => Promise<PrimeBundle>;
   prime: PrimeBundle;
 };
 

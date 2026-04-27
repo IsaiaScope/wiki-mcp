@@ -73,7 +73,7 @@ export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerH
     { instructions: prime.instructions },
   );
 
-  const ctx: ToolContext & ResourceContext = { env, github, getSnapshot, prime };
+  const ctx: ToolContext & ResourceContext = { env, github, getSnapshot, getPrime, prime };
   const tools = registerTools(server, ctx);
   const resources = registerResources(server, ctx);
 
