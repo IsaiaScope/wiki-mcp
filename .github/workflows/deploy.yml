@@ -16,6 +16,17 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# GitHub is removing Node 20 from runners on 2026-09-16 and forcing JS
+# actions to Node 24 on 2026-06-02. cloudflare/wrangler-action@v3.15.0
+# (latest as of writing) still declares `using: node20`, which triggers
+# the deprecation warning on every run. Opt into Node 24 now so the
+# action stops warning and is already exercised on the new runtime
+# before the forced cutover. Once Node 24 is default this var becomes a
+# no-op; remove it once wrangler-action ships a v4 that pins node24.
+# Drop this block in favor of bumping wrangler-action when v4 lands.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     runs-on: ubuntu-latest

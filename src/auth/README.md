@@ -34,7 +34,13 @@ T2  set MCP_BEARER = newToken              (still both valid)
 T3  unset MCP_BEARER_NEXT                  (only new token works)
 ```
 
-At any single instant, requests with **either** token return 200; requests with neither return 401 with `WWW-Authenticate: Bearer realm="wiki-mcp"`.
+At any single instant, requests with **either** token return 200; requests with neither return 401 with `WWW-Authenticate: Bearer realm="wiki-mcp", resource_metadata="<origin>/.well-known/oauth-protected-resource"`.
+
+## 🔗 OAuth discovery handshake
+
+`unauthorized(resourceMetadataUrl)` appends `resource_metadata="…"` to the challenge per **RFC 9728** so MCP clients can locate the protected-resource metadata document without an out-of-band config step. The metadata route lives in `src/index.ts` and advertises bearer-via-header with no authorization servers — wiki-mcp does not run an OAuth AS.
+
+The `resourceMetadataUrl` arg is optional; the worker entry always passes it. Callers outside the `/mcp` request path may omit it to fall back to the bare `Bearer realm="wiki-mcp"` challenge.
 
 ## 🧪 Testing
 
