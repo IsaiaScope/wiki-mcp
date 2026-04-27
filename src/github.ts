@@ -10,6 +10,12 @@ export type TreeResponse = {
 
 type CacheEntry = { value: TreeResponse; at: number };
 
+export type PutFileResult = {
+  content_sha: string;
+  commit_sha: string;
+  html_url: string;
+};
+
 export class GithubClient {
   private cache: CacheEntry | null = null;
 
@@ -82,6 +88,67 @@ export class GithubClient {
     }
     const body = (await res.json()) as { sha?: string };
     return body.sha ?? null;
+  }
+
+  async putFile(
+    path: string,
+    contentBase64: string,
+    message: string,
+    sha?: string,
+  ): Promise<PutFileResult> {
+    const url = this.contentsUrl(path);
+    const body: Record<string, unknown> = {
+      message,
+      content: contentBase64,
+      branch: this.env.GITHUB_BRANCH,
+      committer: {
+        name: "wiki-mcp",
+        email: "wiki-mcp@users.noreply.github.com",
+      },
+    };
+    if (sha) body.sha = sha;
+
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${this.env.GITHUB_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
+        "User-Agent": "wiki-mcp",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`GitHub auth failed (${res.status}) — check GITHUB_TOKEN has contents:write`);
+    }
+    if (res.status === 409) {
+      throw new Error("GitHub conflict (409) — file changed concurrently. Retry.");
+    }
+    if (res.status === 422) {
+      let detail = "";
+      try {
+        const j = (await res.json()) as { message?: string };
+        detail = j.message ?? "";
+      } catch {
+        /* swallow */
+      }
+      throw new Error(`GitHub rejected path (422): ${detail}`);
+    }
+    if (!res.ok) {
+      throw new Error(`GitHub PUT failed (${res.status}) for ${path}`);
+    }
+
+    const json = (await res.json()) as {
+      content?: { sha?: string; html_url?: string };
+      commit?: { sha?: string };
+    };
+    return {
+      content_sha: json.content?.sha ?? "",
+      commit_sha: json.commit?.sha ?? "",
+      html_url: json.content?.html_url ?? "",
+    };
   }
 
   invalidate(): void {
