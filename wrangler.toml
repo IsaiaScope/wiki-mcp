@@ -1,6 +1,7 @@
 name = "wiki-mcp"
 main = "src/index.ts"
 compatibility_date = "2026-04-24"
+compatibility_flags = ["nodejs_compat"]
 
 # Default environment = production. `wrangler deploy` (no flag) ships this.
 # Worker URL: https://wiki-mcp.<account-subdomain>.workers.dev
@@ -24,6 +25,7 @@ WIKI_PRIME_GREETING = ""
 # leak surface is acceptable on a non-shared test worker.
 [env.dev]
 name = "wiki-mcp-dev"
+compatibility_flags = ["nodejs_compat"]
 
 [env.dev.vars]
 GITHUB_REPO = "IsaiaScope/wikionfire"
