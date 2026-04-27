@@ -24,10 +24,10 @@ Companion to [`wikionfire`](https://github.com/IsaiaScope/wikionfire) but agnost
 
 | | Tool | Purpose | Mode |
 |-|------|---------|------|
-| 🎁 | **`wiki_context(question, domain?, budget_tokens?, include_log?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion). `include_log=false` suppresses activity log for privacy. | read |
-| 🔍 | **`wiki_search(query, domain?, limit?)`** | two-stage ranked keyword search: path-token shortlist + body/frontmatter re-rank (title, aliases, tags, entities, concepts, headings) | read |
-| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20). Paths must exist in current snapshot. `SENSITIVE_FRONTMATTER_KEYS` env strips listed keys from output. | read |
-| 🗂️ | **`wiki_list(domain?, type?, tag?, entity?, concept?)`** | structured directory listing with optional metadata filters | read |
+| 🎁 | **`wiki_context(question, domain?, budget_tokens?, include_log?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion). Hits include `truncated: boolean` when bodies are clipped to fit budget. `include_log=false` suppresses activity log for privacy. | read |
+| 🔍 | **`wiki_search(query, domain?, limit?)`** | two-stage ranked keyword search: path-token shortlist + body/frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Stage 2 fetches up to `limit*2` bodies. | read |
+| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20). Paths must exist in current snapshot. Unknown paths return per-path `error` field (partial success). `SENSITIVE_FRONTMATTER_KEYS` env strips listed keys from output. | read |
+| 🗂️ | **`wiki_list(domain?, type?, tag?, entity?, concept?, limit?, offset?)`** | structured directory listing with optional metadata filters (case-insensitive). Returns `{items, total, offset, limit, truncated}`. Default limit 200, max 1000. | read |
 | 🧱 | **`wiki_read_raw(path)`** | read a binary or text file under `{domain}/raw/{subpath}` as base64. Path must be in snapshot and live under `raw/`. | read |
 | ⬆️ | **`wiki_upload(domain, subpath, content_base64, message?)`** | upload any file (PDF, image, text, binary) under `{domain}/raw/{subpath}` — 25 MB cap, requires `contents:write` | **write** |
 
@@ -176,6 +176,7 @@ Everything is env-driven. Fork this repo and point it at your wiki — no code c
 | 👋 | `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
 | 🚫 | `SENSITIVE_FRONTMATTER_KEYS` | `wrangler.toml [vars]` | CSV of frontmatter keys stripped from `wiki_fetch` output (e.g. `password,api_key`) |
 | 🪟 | `SKIP_TOP_DIRS` | `wrangler.toml [vars]` | CSV override of skipped top-level dirs (default `.git,.github,docs,mcp,node_modules,.obsidian,.trash`) |
+| 💾 | `BODY_CACHE_MAX` | `wrangler.toml [vars]` | Max LRU entries for the per-page body cache (default `800`). Raise for vaults >1k pages. |
 | 🔐 | `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
 | 🔁 | `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
 | 🐙 | `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT — `contents:read` minimum, `contents:write` for `wiki_upload` |

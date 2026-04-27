@@ -33,13 +33,13 @@ export function prettifyTitle(raw: string): string {
 
 const STATIC_TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   wiki_context:
-    "PRIMARY tool for natural-language wiki questions. Returns one bundle: schema (CLAUDE.md + llm-wiki conventions) + per-domain indexes + last 50 log entries + ranked page hits with bodies + one-hop wikilink expansions. Use this when you don't know exact paths. Cite hits with [[path]]. Pass include_log=false to skip activity log for privacy.",
+    "PRIMARY tool for natural-language wiki questions. Returns one bundle: schema (CLAUDE.md + llm-wiki conventions) + per-domain indexes + last 50 log entries + ranked page hits with bodies + one-hop wikilink expansions. Hits include `truncated: boolean` when bodies are clipped to fit budget_tokens — call wiki_fetch for the full page. Use this when you don't know exact paths. Cite hits with [[path]]. Pass include_log=false to skip activity log for privacy. Domain filter accepts a domain name or 'all' (default).",
   wiki_search:
-    "Keyword search with two-stage rank: path-token shortlist, then body+frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Returns {path,title,snippet,score}. Use when you have an exact term or phrase (quoted phrases supported). Chain with wiki_fetch to read full bodies.",
+    "Keyword search with two-stage rank: path-token shortlist, then body+frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Returns {path,title,snippet,score}. Cost note: `limit` controls returned hits; stage 2 fetches up to limit*2 bodies. Frontmatter filters (tag/entity/concept) match case-insensitively. Use when you have an exact term or phrase (quoted phrases supported). Chain with wiki_fetch to read full bodies.",
   wiki_fetch:
-    "Read full markdown for known paths (max 20 per call). Returns {path,content,frontmatter}. Use after wiki_search/wiki_list/citations surface a path. Unknown paths return per-path error.",
+    "Read full markdown for known paths (max 20 per call). Returns {path,content,frontmatter}. Partial-success: unknown paths return a per-path `error` field rather than failing the whole batch — inspect each result. Frontmatter is filtered by SENSITIVE_FRONTMATTER_KEYS. Use after wiki_search/wiki_list/citations surface a path.",
   wiki_list:
-    "Enumerate discovered pages without fetching bodies. Optional filters: domain, type, tag, entity, concept. Cheapest tool — use to scope before wiki_context.",
+    "Enumerate discovered pages without fetching bodies. Optional filters: domain, type, tag, entity, concept (all case-insensitive). Pagination: `limit` (default 200, max 1000) and `offset`. Returns {items, total, offset, limit, truncated}. Cheapest tool — use to scope before wiki_context.",
   wiki_upload:
     "Upload a file to {domain}/raw/{subpath}. base64 content, 25 MB cap. Stored as-is, no transformation.",
   wiki_read_raw:

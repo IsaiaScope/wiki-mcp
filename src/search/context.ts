@@ -1,6 +1,9 @@
 import type { Env } from "../env";
+import { redactBody } from "../env";
 import type { GithubClient } from "../github";
+import { snapCache } from "../snapshot-cache";
 import type { Bundle, Hit, Snapshot } from "../types";
+import { basename, isAllDomain, pathToText, toStringArray } from "../util";
 import { extractLinks, parseFrontmatter, resolveLink } from "../wiki";
 import { estimateTokens, truncateAtHeading } from "./budget";
 import { type RankDoc, rankDocs } from "./rank";
@@ -24,12 +27,7 @@ export async function buildContext(
   _env: Env,
 ): Promise<Bundle> {
   const candidatePaths = collectCandidatePaths(snap, input.domain);
-
-  const metadataDocs: RankDoc[] = candidatePaths.map((p) => ({
-    id: p,
-    text: pathToText(p),
-    weightedTerms: [basename(p)],
-  }));
+  const metadataDocs = getMetaDocs(snap, input.domain, candidatePaths);
 
   const metaHits = rankDocs(input.question, metadataDocs);
   const candidateK = Math.max(5, Math.ceil(input.budget_tokens / 400));
@@ -47,20 +45,30 @@ export async function buildContext(
 
   const bodyByPath = new Map(bodies.map((b) => [b.path, b.raw]));
 
-  const expansions = new Map<string, { body: string; parent: string }>();
+  const chosenSet = new Set(chosen);
+  const expansionPlan: Array<{ path: string; parent: string }> = [];
+  const planned = new Set<string>();
   for (const parentPath of chosen) {
     const parentBody = bodyByPath.get(parentPath) ?? "";
     const linked = extractLinks(parentBody);
     const resolved = linked
       .map((l) => resolveLink(l, parentPath, snap.allPaths))
       .filter((x): x is string => !!x)
-      .filter((p) => !chosen.includes(p) && !expansions.has(p))
+      .filter((p) => !chosenSet.has(p) && !planned.has(p))
       .slice(0, EXPAND_CAP_PER_PAGE);
-
     for (const p of resolved) {
-      const raw = await safeFetch(client, snap.sha, p);
-      if (raw) expansions.set(p, { body: raw, parent: parentPath });
+      planned.add(p);
+      expansionPlan.push({ path: p, parent: parentPath });
     }
+  }
+  // Batch expansion fetches: planned paths are independent, body LRU dedupes.
+  const expansionBodies = await Promise.all(
+    expansionPlan.map((e) => safeFetch(client, snap.sha, e.path)),
+  );
+  const expansions = new Map<string, { body: string; parent: string }>();
+  for (let i = 0; i < expansionPlan.length; i++) {
+    const raw = expansionBodies[i];
+    if (raw) expansions.set(expansionPlan[i].path, { body: raw, parent: expansionPlan[i].parent });
   }
 
   const hits: Hit[] = [];
@@ -68,7 +76,7 @@ export async function buildContext(
 
   for (const path of chosen) {
     if (remaining <= 0) break;
-    const rawBody = bodyByPath.get(path) ?? "";
+    const rawBody = redactBody(bodyByPath.get(path) ?? "");
     const trunc = truncateAtHeading(rawBody, remaining, { path });
     const expandedPaths = [...expansions.entries()]
       .filter(([, v]) => v.parent === path)
@@ -78,6 +86,7 @@ export async function buildContext(
       score: bodyHits.find((h) => h.id === path)?.score ?? 0,
       reason: "direct match",
       body: trunc.text,
+      truncated: trunc.truncated,
       links_expanded: expandedPaths,
     });
     remaining -= estimateTokens(trunc.text);
@@ -87,7 +96,7 @@ export async function buildContext(
     const sortedExpansions = [...expansions.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     for (const [path, entry] of sortedExpansions) {
       if (remaining <= 0) break;
-      const trunc = truncateAtHeading(entry.body, remaining, { path });
+      const trunc = truncateAtHeading(redactBody(entry.body), remaining, { path });
       const parentHit = hits.find((h) => h.path === entry.parent);
       if (parentHit && !parentHit.links_expanded.includes(path)) {
         parentHit.links_expanded.push(path);
@@ -97,16 +106,21 @@ export async function buildContext(
         score: 0,
         reason: `expansion from ${entry.parent}`,
         body: trunc.text,
+        truncated: trunc.truncated,
         links_expanded: [],
       });
       remaining -= estimateTokens(trunc.text);
     }
   }
 
-  const indexes = await readIndexes(snap, client, input.domain);
-  const schema = await readSchema(snap, client);
-  const recent_log =
-    input.include_log === false ? [] : await readRecentLog(snap, client, input.domain);
+  // Three independent reads — fan out to overlap I/O.
+  const [indexes, schema, recent_log] = await Promise.all([
+    readIndexes(snap, client, input.domain),
+    readSchema(snap, client),
+    input.include_log === false
+      ? Promise.resolve<string[]>([])
+      : readRecentLog(snap, client, input.domain),
+  ]);
 
   return {
     schema,
@@ -125,47 +139,49 @@ async function safeFetch(client: GithubClient, sha: string, path: string): Promi
   }
 }
 
+function domainMatches(filter: string, name: string): boolean {
+  return isAllDomain(filter) || filter.toLowerCase() === name.toLowerCase();
+}
+
 function collectCandidatePaths(snap: Snapshot, domainFilter: string): string[] {
   const out: string[] = [];
   for (const [name, dom] of snap.domains) {
-    if (domainFilter !== "all" && domainFilter !== name) continue;
+    if (!domainMatches(domainFilter, name)) continue;
     for (const [, paths] of dom.wikiTypes) out.push(...paths);
   }
   return out;
 }
 
-function pathToText(path: string): string {
-  return path.replace(/\.md$/, "").replace(/[/_-]/g, " ");
-}
-
-function basename(path: string): string {
-  return (path.split("/").pop() ?? path).replace(/\.md$/, "");
-}
-
-function extractStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v) => typeof v === "string");
-}
-
 export function pageRankDoc(path: string, raw: string): RankDoc {
   if (!raw) return { id: path, text: pathToText(path), weightedTerms: [basename(path)] };
   const parsed = parseFrontmatter(raw, { pathHint: path });
-  const tagTerms = extractStringArray(parsed.data.tags);
-  const entityTerms = extractStringArray(parsed.data.entities);
-  const conceptTerms = extractStringArray(parsed.data.concepts);
-  const aliasTerms = extractStringArray(parsed.data.aliases);
   return {
     id: path,
     text: `${parsed.title} ${parsed.body}`,
     weightedTerms: [
       parsed.title,
-      ...aliasTerms,
-      ...tagTerms,
-      ...entityTerms,
-      ...conceptTerms,
+      ...toStringArray(parsed.data.aliases),
+      ...toStringArray(parsed.data.tags),
+      ...toStringArray(parsed.data.entities),
+      ...toStringArray(parsed.data.concepts),
       ...parsed.headings,
     ],
   };
+}
+
+function getMetaDocs(snap: Snapshot, domainFilter: string, candidatePaths: string[]): RankDoc[] {
+  const cache = snapCache(snap);
+  const cacheKey = domainFilter;
+  if (!cache.metaDocs) cache.metaDocs = new Map();
+  const hit = cache.metaDocs.get(cacheKey);
+  if (hit) return hit;
+  const built: RankDoc[] = candidatePaths.map((p) => ({
+    id: p,
+    text: pathToText(p),
+    weightedTerms: [basename(p)],
+  }));
+  cache.metaDocs.set(cacheKey, built);
+  return built;
 }
 
 async function readIndexes(
@@ -173,21 +189,30 @@ async function readIndexes(
   client: GithubClient,
   domainFilter: string,
 ): Promise<Record<string, string>> {
+  const cache = snapCache(snap);
+  if (!cache.indexes) cache.indexes = new Map();
+  const hit = cache.indexes.get(domainFilter);
+  if (hit) return hit;
   const out: Record<string, string> = {};
   for (const [name, dom] of snap.domains) {
-    if (domainFilter !== "all" && domainFilter !== name) continue;
+    if (!domainMatches(domainFilter, name)) continue;
     out[name] = await safeFetch(client, snap.sha, dom.indexPath);
   }
+  cache.indexes.set(domainFilter, out);
   return out;
 }
 
 async function readSchema(snap: Snapshot, client: GithubClient): Promise<string> {
+  const cache = snapCache(snap);
+  if (cache.schema !== undefined) return cache.schema;
   const parts: string[] = [];
   for (const p of snap.schemaPaths) {
     const body = await safeFetch(client, snap.sha, p);
     if (body) parts.push(`\n\n--- ${p} ---\n\n${body}`);
   }
-  return parts.join("\n").trim();
+  const result = parts.join("\n").trim();
+  cache.schema = result;
+  return result;
 }
 
 async function readRecentLog(
@@ -197,7 +222,7 @@ async function readRecentLog(
 ): Promise<string[]> {
   const all: Array<{ line: string; date: string }> = [];
   for (const [name, dom] of snap.domains) {
-    if (domainFilter !== "all" && domainFilter !== name) continue;
+    if (!domainMatches(domainFilter, name)) continue;
     const body = await safeFetch(client, snap.sha, dom.logPath);
     for (const line of body.split("\n")) {
       const m = line.match(/^##\s+\[([0-9T:\-Z]+)\]/);
