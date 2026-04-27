@@ -1,10 +1,9 @@
+import type { Env } from "../env";
+import type { GithubClient } from "../github";
+import type { Bundle, Hit, Snapshot } from "../types";
+import { extractLinks, parseFrontmatter, resolveLink } from "../wiki";
 import { estimateTokens, truncateAtHeading } from "./budget";
-import type { Env } from "./env";
-import { parseFrontmatter } from "./frontmatter";
-import type { GithubClient } from "./github";
 import { type RankDoc, rankDocs } from "./rank";
-import type { Bundle, Hit, Snapshot } from "./types";
-import { extractLinks, resolveLink } from "./wikilinks";
 
 export type ContextInput = {
   question: string;

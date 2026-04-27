@@ -1,16 +1,18 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { buildContext } from "./context";
-import type { Env } from "./env";
-import { parseFrontmatter } from "./frontmatter";
-import type { GithubClient } from "./github";
-import { rankDocs } from "./rank";
-import type { Snapshot } from "./types";
+import type { Env } from "../env";
+import type { GithubClient } from "../github";
+import { buildContext, rankDocs } from "../search";
+import type { PrimeBundle, Snapshot } from "../types";
+import { uploadFile } from "../upload";
+import { parseFrontmatter } from "../wiki";
 
 export type ToolContext = {
   env: Env;
   github: GithubClient;
   getSnapshot: () => Promise<Snapshot>;
+  getPrime: () => Promise<PrimeBundle>;
+  prime: PrimeBundle;
 };
 
 export type ToolResult = {
@@ -24,8 +26,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_context",
     {
-      description:
-        "Return a full knowledge bundle (schema + indexes + log tail + ranked hits + one-hop link expansion) for a question. Primary tool; call this first for wiki-relevant questions.",
+      description: ctx.prime.toolDescriptions.wiki_context,
       inputSchema: {
         question: z.string(),
         domain: z.string().optional(),
@@ -40,8 +41,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_search",
     {
-      description:
-        "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
+      description: ctx.prime.toolDescriptions.wiki_search,
       inputSchema: {
         query: z.string(),
         domain: z.string().optional(),
@@ -56,7 +56,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_fetch",
     {
-      description: "Batch read pages by path. Max 20 paths per call.",
+      description: ctx.prime.toolDescriptions.wiki_fetch,
       inputSchema: {
         paths: z.array(z.string()).min(1).max(20),
       },
@@ -69,7 +69,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_list",
     {
-      description: "List discovered pages, optionally filtered by domain and/or type.",
+      description: ctx.prime.toolDescriptions.wiki_list,
       inputSchema: {
         domain: z.string().optional(),
         type: z.string().optional(),
@@ -79,6 +79,22 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
     async (args) => wikiListHandler(args, ctx),
   );
   table.set("wiki_list", (raw) => wikiListHandler(raw, ctx));
+
+  server.registerTool(
+    "wiki_upload",
+    {
+      description: ctx.prime.toolDescriptions.wiki_upload,
+      inputSchema: {
+        domain: z.string(),
+        subpath: z.string(),
+        content_base64: z.string(),
+        message: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, idempotentHint: false },
+    },
+    async (args) => wikiUploadHandler(args, ctx),
+  );
+  table.set("wiki_upload", (raw) => wikiUploadHandler(raw, ctx));
 
   return {
     names: () => [...table.keys()],
@@ -225,6 +241,24 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
       }
     }
     return { content: [{ type: "text", text: JSON.stringify(items) }] };
+  } catch (e) {
+    return errorResult((e as Error).message);
+  }
+}
+
+const uploadSchema = z.object({
+  domain: z.string(),
+  subpath: z.string(),
+  content_base64: z.string(),
+  message: z.string().optional(),
+});
+async function wikiUploadHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
+  const parsed = uploadSchema.safeParse(raw);
+  if (!parsed.success) return errorResult(`invalid input: ${parsed.error.message}`);
+  try {
+    const snap = await ctx.getSnapshot();
+    const result = await uploadFile(parsed.data, snap, ctx.github, ctx.env);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }

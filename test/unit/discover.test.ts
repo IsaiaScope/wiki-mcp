@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSnapshot } from "../../src/discover";
 import type { TreeResponse } from "../../src/github";
+import { buildSnapshot } from "../../src/wiki";
 import { loadFixtureTree, makeEnv } from "../helpers";
 
 describe("buildSnapshot", () => {

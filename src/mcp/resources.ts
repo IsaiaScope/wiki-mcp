@@ -37,6 +37,47 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
   table.set("wiki://log/recent", () => readLogRecent(ctx));
 
   server.registerResource(
+    "overview",
+    "wiki://overview",
+    {
+      description: "High-level map of discovered domains with per-domain slice URIs",
+      mimeType: "text/markdown",
+    },
+    async () => {
+      const p = await ctx.getPrime();
+      return { contents: [{ uri: "wiki://overview", text: p.overviewIndex }] };
+    },
+  );
+  table.set("wiki://overview", async () => {
+    const p = await ctx.getPrime();
+    return { contents: [{ uri: "wiki://overview", text: p.overviewIndex }] };
+  });
+
+  // Pre-enumerate slices using the current prime so resources/list reflects the
+  // known domain set. Handlers re-read prime at request time for freshness.
+  for (const dname of ctx.prime.overviewByDomain.keys()) {
+    const uri = `wiki://overview/${dname}`;
+    server.registerResource(
+      `overview-${dname}`,
+      uri,
+      {
+        description: `Overview of the ${dname} domain`,
+        mimeType: "text/markdown",
+      },
+      async () => {
+        const p = await ctx.getPrime();
+        const body = p.overviewByDomain.get(dname) ?? "";
+        return { contents: [{ uri, text: body }] };
+      },
+    );
+    table.set(uri, async () => {
+      const p = await ctx.getPrime();
+      const body = p.overviewByDomain.get(dname) ?? "";
+      return { contents: [{ uri, text: body }] };
+    });
+  }
+
+  server.registerResource(
     "page",
     new ResourceTemplate("wiki://page/{domain}/{type}/{slug}", { list: undefined }),
     { description: "Individual wiki page", mimeType: "text/markdown" },
@@ -60,6 +101,14 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
           decodeURIComponent(m[3]),
           uri,
         );
+      const overviewMatch = uri.match(/^wiki:\/\/overview\/(.+)$/);
+      if (overviewMatch) {
+        const p = await ctx.getPrime();
+        const known = Array.from(p.overviewByDomain.keys()).join(", ") || "(none)";
+        throw new Error(
+          `Unknown domain in overview URI: ${overviewMatch[1]}. Known domains: ${known}`,
+        );
+      }
       throw new Error(`Unknown resource URI: ${uri}`);
     },
   };

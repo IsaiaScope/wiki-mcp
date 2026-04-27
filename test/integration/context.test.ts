@@ -1,9 +1,9 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildContext } from "../../src/context";
-import { buildSnapshot } from "../../src/discover";
 import { GithubClient } from "../../src/github";
+import { buildContext } from "../../src/search";
+import { buildSnapshot } from "../../src/wiki";
 import { makeEnv, makeFixtureFetch } from "../helpers";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
