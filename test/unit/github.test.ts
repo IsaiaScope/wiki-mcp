@@ -66,6 +66,22 @@ describe("GithubClient", () => {
     expect(body).toBe("# Foo\nbody here");
   });
 
+  it("fetchBody sends Bearer auth header (private repo support)", async () => {
+    fetchSpy.mockResolvedValue(new Response("body"));
+    const client = new GithubClient(makeEnv());
+    await client.fetchBody("abc", "personal/wiki/entities/Foo.md");
+    const [, init] = fetchSpy.mock.calls[0];
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer test-pat" });
+  });
+
+  it("fetchBytesBase64 sends Bearer auth header (private repo support)", async () => {
+    fetchSpy.mockResolvedValue(new Response(new Uint8Array([0, 1, 2, 3])));
+    const client = new GithubClient(makeEnv());
+    await client.fetchBytesBase64("abc", "personal/raw/note.pdf");
+    const [, init] = fetchSpy.mock.calls[0];
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: "Bearer test-pat" });
+  });
+
   it("caches fetchBody by sha+path within TTL", async () => {
     fetchSpy.mockResolvedValue(new Response("body-v1"));
     const client = new GithubClient(makeEnv({ CACHE_TTL_SECONDS: "60" }));
