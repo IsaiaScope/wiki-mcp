@@ -1,6 +1,6 @@
 {
   "name": "wiki-mcp",
-  "version": "0.13.6",
+  "version": "0.13.10",
   "description": "Read-only MCP server exposing an LLM-wiki vault to Claude clients",
   "private": false,
   "license": "MIT",
