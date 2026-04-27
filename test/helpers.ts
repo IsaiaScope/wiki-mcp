@@ -19,6 +19,8 @@ export function makeEnv(overrides: Record<string, string> = {}) {
     DOMAIN_REQUIRED_FILES: "index.md,log.md",
     MCP_BEARER: "test-bearer",
     GITHUB_TOKEN: "test-pat",
+    MAX_UPLOAD_BYTES: "26214400",
+    RAW_FOLDER: "raw",
     ...overrides,
   };
 }

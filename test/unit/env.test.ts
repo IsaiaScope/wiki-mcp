@@ -79,6 +79,45 @@ describe("parseVocabMode", () => {
   });
 });
 
+import { maxUploadBytes, rawFolder } from "../../src/env";
+
+describe("maxUploadBytes", () => {
+  it("parses numeric string to bytes", () => {
+    expect(maxUploadBytes({ MAX_UPLOAD_BYTES: "1048576" } as never)).toBe(1_048_576);
+  });
+
+  it("falls back to 25 MB default on non-numeric", () => {
+    expect(maxUploadBytes({ MAX_UPLOAD_BYTES: "xxx" } as never)).toBe(26_214_400);
+  });
+
+  it("falls back to 25 MB default on zero or negative", () => {
+    expect(maxUploadBytes({ MAX_UPLOAD_BYTES: "0" } as never)).toBe(26_214_400);
+    expect(maxUploadBytes({ MAX_UPLOAD_BYTES: "-5" } as never)).toBe(26_214_400);
+  });
+
+  it("falls back to 25 MB default when field absent", () => {
+    expect(maxUploadBytes({} as never)).toBe(26_214_400);
+  });
+});
+
+describe("rawFolder", () => {
+  it("returns configured folder name", () => {
+    expect(rawFolder({ RAW_FOLDER: "raw" } as never)).toBe("raw");
+    expect(rawFolder({ RAW_FOLDER: "assets" } as never)).toBe("assets");
+  });
+
+  it("falls back to 'raw' default when empty or absent", () => {
+    expect(rawFolder({ RAW_FOLDER: "" } as never)).toBe("raw");
+    expect(rawFolder({} as never)).toBe("raw");
+  });
+
+  it("trims whitespace and rejects path separators", () => {
+    expect(rawFolder({ RAW_FOLDER: "  raw  " } as never)).toBe("raw");
+    expect(rawFolder({ RAW_FOLDER: "raw/data" } as never)).toBe("raw");
+    expect(rawFolder({ RAW_FOLDER: "../raw" } as never)).toBe("raw");
+  });
+});
+
 describe("assertEnv — optional priming vars", () => {
   const full = {
     GITHUB_REPO: "a/b",
