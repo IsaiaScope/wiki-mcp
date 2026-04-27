@@ -115,6 +115,33 @@ Everything is env-driven. Fork this repo and point it at your wiki — no code c
 | `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
 | `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
 | `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT, `contents:read` |
+| `WIKI_PRIME_VOCAB` | `wrangler.toml [vars]` | Priming privacy mode: `structural` (default, no titles in instructions/tools), `full` (titles injected, capped), `off` (minimal) |
+| `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
+
+## Server priming
+
+On every `initialize`, the server emits a dynamic `instructions` field computed from your wiki's actual shape (domains, types, page counts). Two resources are always exposed:
+
+- `wiki://overview` — domain map with per-domain slice URIs
+- `wiki://overview/{domain}` — page listing for one domain, each page as a `[[path]]` link with a prettified title
+
+### Privacy
+
+`WIKI_PRIME_VOCAB` controls what gets injected into passive text surfaces:
+
+| Mode | `instructions` | Tool descriptions | `wiki://overview` |
+|------|---------------|--------------------|-------------------|
+| `structural` (default) | Domain names + type names + counts | Structural only | Full titles |
+| `full` | Structural + trigger vocab (top 50 titles) | Structural + trigger vocab (top 30 titles) | Full titles |
+| `off` | One-liner | Static defaults (pre-priming) | Suppressed |
+
+Titles in `wiki://overview*` always appear because fetching a resource is an explicit client action. Text surfaces are the sensitive layer — keep `structural` as default for shared workers. Only flip to `full` for single-user workers where max-signal matters more than leak surface.
+
+### Greeting
+
+`WIKI_PRIME_GREETING` is a free-form one-line (or short multi-line) string prepended to both `instructions` and `wiki://overview`. Use it for fork identity, e.g. `WIKI_PRIME_GREETING="Riva's work wiki — Italian-language labor concepts."`.
+
+No code changes required to fork — set both vars in `wrangler.toml [vars]` (or leave unset for defaults) and redeploy.
 
 ## Development
 
@@ -127,7 +154,7 @@ pnpm lint                  # ultracite check (biome under the hood)
 pnpm fix                   # ultracite fix
 ```
 
-68 tests across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
+124 tests across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
 ## Tooling
 

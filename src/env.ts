@@ -8,6 +8,8 @@ export type Env = {
   MCP_BEARER: string;
   MCP_BEARER_NEXT?: string;
   GITHUB_TOKEN: string;
+  WIKI_PRIME_VOCAB?: string;
+  WIKI_PRIME_GREETING?: string;
 };
 
 const REQUIRED_KEYS = [
@@ -42,4 +44,16 @@ export function ttlMs(env: Env): number {
   const seconds = parseInt(env.CACHE_TTL_SECONDS, 10);
   if (!Number.isFinite(seconds) || seconds <= 0) return 60_000;
   return seconds * 1000;
+}
+
+import type { PrimeVocabMode } from "./types";
+
+const VOCAB_MODES: readonly PrimeVocabMode[] = ["structural", "full", "off"];
+
+export function parseVocabMode(raw: string | undefined): PrimeVocabMode {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "structural";
+  return (VOCAB_MODES as readonly string[]).includes(trimmed)
+    ? (trimmed as PrimeVocabMode)
+    : "structural";
 }

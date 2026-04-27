@@ -51,3 +51,57 @@ describe("ttlMs", () => {
     expect(ttlMs({ CACHE_TTL_SECONDS: "-5" } as never)).toBe(60_000);
   });
 });
+
+import { parseVocabMode } from "../../src/env";
+
+describe("parseVocabMode", () => {
+  it("returns 'structural' as the default when input is undefined", () => {
+    expect(parseVocabMode(undefined)).toBe("structural");
+  });
+
+  it("returns 'structural' for empty string", () => {
+    expect(parseVocabMode("")).toBe("structural");
+  });
+
+  it("returns the three canonical values verbatim", () => {
+    expect(parseVocabMode("structural")).toBe("structural");
+    expect(parseVocabMode("full")).toBe("full");
+    expect(parseVocabMode("off")).toBe("off");
+  });
+
+  it("falls back to 'structural' on unknown value (typo-safe, no throw)", () => {
+    expect(parseVocabMode("Full")).toBe("structural");
+    expect(parseVocabMode("verbose")).toBe("structural");
+  });
+
+  it("trims surrounding whitespace before matching", () => {
+    expect(parseVocabMode("  full  ")).toBe("full");
+  });
+});
+
+describe("assertEnv — optional priming vars", () => {
+  const full = {
+    GITHUB_REPO: "a/b",
+    GITHUB_BRANCH: "main",
+    WIKI_SERVER_NAME: "wiki",
+    CACHE_TTL_SECONDS: "60",
+    SCHEMA_GLOBS: "CLAUDE.md",
+    DOMAIN_REQUIRED_FILES: "index.md,log.md",
+    MCP_BEARER: "bearer",
+    GITHUB_TOKEN: "pat",
+  };
+
+  it("does not require WIKI_PRIME_VOCAB", () => {
+    expect(() => assertEnv({ ...full })).not.toThrow();
+  });
+
+  it("does not require WIKI_PRIME_GREETING", () => {
+    expect(() => assertEnv({ ...full })).not.toThrow();
+  });
+
+  it("accepts both priming vars when set", () => {
+    expect(() =>
+      assertEnv({ ...full, WIKI_PRIME_VOCAB: "full", WIKI_PRIME_GREETING: "hi" }),
+    ).not.toThrow();
+  });
+});

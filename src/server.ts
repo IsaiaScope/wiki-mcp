@@ -2,9 +2,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { buildSnapshot } from "./discover";
 import { assertEnv, type Env } from "./env";
 import { GithubClient } from "./github";
+import { buildPrime } from "./prime";
 import { type ReadResult, type ResourceContext, registerResources } from "./resources";
 import { registerTools, type ToolContext, type ToolResult } from "./tools";
-import type { Snapshot } from "./types";
+import type { PrimeBundle, Snapshot } from "./types";
 
 export type ServerHandle = {
   raw: McpServer;
@@ -17,6 +18,7 @@ export type ServerHandle = {
 export type ServerDeps = {
   github: GithubClient;
   getSnapshot: () => Promise<Snapshot>;
+  getPrime: () => Promise<PrimeBundle>;
   refresh: () => Promise<Snapshot>;
   isStale: () => boolean;
 };
@@ -25,40 +27,59 @@ export function buildDeps(env: Env): ServerDeps {
   assertEnv(env);
   const github = new GithubClient(env);
   let snapshot: Snapshot | null = null;
+  let prime: PrimeBundle | null = null;
+
+  const rebuild = (s: Snapshot): Snapshot => {
+    snapshot = s;
+    prime = buildPrime(s, env);
+    if (prime.vocabMode !== "off") {
+      let titleCount = 0;
+      for (const perType of prime.overviewByDomain.values()) {
+        titleCount += (perType.match(/^- \[\[/gm) ?? []).length;
+      }
+      console.log(
+        `[prime] rebuilt sha=${s.sha.slice(0, 7)} domains=${s.domains.size} vocabMode=${prime.vocabMode} titles=${titleCount}`,
+      );
+    }
+    return s;
+  };
 
   const refresh = async (): Promise<Snapshot> => {
     github.invalidate();
     const tree = await github.fetchTree();
-    snapshot = buildSnapshot(tree, env);
-    return snapshot;
+    return rebuild(buildSnapshot(tree, env));
   };
 
   const getSnapshot = async (): Promise<Snapshot> => {
     if (snapshot) return snapshot;
-    // Cold start: must block on the first fetch.
     const tree = await github.fetchTree();
-    snapshot = buildSnapshot(tree, env);
-    return snapshot;
+    return rebuild(buildSnapshot(tree, env));
+  };
+
+  const getPrime = async (): Promise<PrimeBundle> => {
+    if (prime) return prime;
+    await getSnapshot();
+    // rebuild() sets both snapshot and prime synchronously, so prime is non-null after getSnapshot resolves
+    return prime!;
   };
 
   const isStale = (): boolean => !snapshot || github.isStale();
 
-  return { github, getSnapshot, refresh, isStale };
+  return { github, getSnapshot, getPrime, refresh, isStale };
 }
 
 export async function createServer(env: Env, deps?: ServerDeps): Promise<ServerHandle> {
   const resolved = deps ?? buildDeps(env);
-  const { github, getSnapshot } = resolved;
+  const { github, getSnapshot, getPrime } = resolved;
   await getSnapshot();
+  const prime = await getPrime();
 
   const server = new McpServer(
     { name: env.WIKI_SERVER_NAME, version: "0.1.0" },
-    {
-      instructions: `Personal knowledge wiki for ${env.WIKI_SERVER_NAME}. Call wiki_context before answering questions that may involve wiki knowledge (entities, concepts, sources, personal or work topics). Cite with [[path]]. Domains are discovered at runtime; read wiki://index/all to see the current layout. Never invent sources or pages not present in the wiki.`,
-    },
+    { instructions: prime.instructions },
   );
 
-  const ctx: ToolContext & ResourceContext = { env, github, getSnapshot };
+  const ctx: ToolContext & ResourceContext = { env, github, getSnapshot, getPrime, prime };
   const tools = registerTools(server, ctx);
   const resources = registerResources(server, ctx);
 
