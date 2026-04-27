@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankDocs, tokenize } from "../../src/rank";
+import { rankDocs, tokenize } from "../../src/search";
 
 describe("tokenize", () => {
   it("lowercases and strips punctuation", () => {

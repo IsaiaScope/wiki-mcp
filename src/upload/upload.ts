@@ -1,6 +1,6 @@
-import { type Env, maxUploadBytes, rawFolder } from "./env";
-import type { GithubClient } from "./github";
-import type { Snapshot } from "./types";
+import { type Env, maxUploadBytes, rawFolder } from "../env";
+import type { GithubClient } from "../github";
+import type { Snapshot } from "../types";
 
 const MAX_SEGMENTS = 8;
 const MAX_SEGMENT_LEN = 255;

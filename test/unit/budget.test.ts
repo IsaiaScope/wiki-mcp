@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateTokens, truncateAtHeading } from "../../src/budget";
+import { estimateTokens, truncateAtHeading } from "../../src/search";
 
 describe("estimateTokens", () => {
   it("approximates ~1.3 tokens per word", () => {

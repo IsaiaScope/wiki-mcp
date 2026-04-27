@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractLinks, resolveLink } from "../../src/wikilinks";
+import { extractLinks, resolveLink } from "../../src/wiki";
 
 const ALL_PATHS = [
   "personal/wiki/entities/Foo.md",

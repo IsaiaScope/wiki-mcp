@@ -1,12 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { buildContext } from "./context";
-import type { Env } from "./env";
-import { parseFrontmatter } from "./frontmatter";
-import type { GithubClient } from "./github";
-import { rankDocs } from "./rank";
-import type { PrimeBundle, Snapshot } from "./types";
-import { uploadFile } from "./upload";
+import type { Env } from "../env";
+import type { GithubClient } from "../github";
+import { buildContext, rankDocs } from "../search";
+import type { PrimeBundle, Snapshot } from "../types";
+import { uploadFile } from "../upload";
+import { parseFrontmatter } from "../wiki";
 
 export type ToolContext = {
   env: Env;

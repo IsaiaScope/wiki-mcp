@@ -1,6 +1,6 @@
-import type { Env } from "./env";
-import { parseVocabMode } from "./env";
-import type { Domain, PrimeBundle, PrimeVocabMode, Snapshot, ToolName } from "./types";
+import type { Env } from "../env";
+import { parseVocabMode } from "../env";
+import type { Domain, PrimeBundle, PrimeVocabMode, Snapshot, ToolName } from "../types";
 
 const KNOWN_ACRONYMS = new Set(["CCNL", "TFR", "ID", "URL", "API", "MCP", "LLM"]);
 

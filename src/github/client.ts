@@ -1,6 +1,6 @@
-import type { Env } from "./env";
-import { ttlMs } from "./env";
-import type { GithubTreeEntry } from "./types";
+import type { Env } from "../env";
+import { ttlMs } from "../env";
+import type { GithubTreeEntry } from "../types";
 
 export type TreeResponse = {
   sha: string;

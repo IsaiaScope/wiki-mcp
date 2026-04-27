@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "../../src/frontmatter";
+import { parseFrontmatter } from "../../src/wiki";
 
 describe("parseFrontmatter", () => {
   it("extracts frontmatter and body", () => {
