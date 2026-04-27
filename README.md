@@ -214,14 +214,28 @@ Two protected branches, no direct pushes:
 - **`prod`** — release branch. PR merges from `dev` trigger deploy to Cloudflare Workers.
 
 ```
-  feature branch ──PR──► dev (CI: test) ──PR──► prod (CI: test + deploy)
+  feature branch ──PR──► dev (CI: test + deploy-dev) ──PR──► prod (CI: test + deploy)
 ```
 
 `.github/workflows/deploy.yml`:
 - `pull_request` on `dev` or `prod` → runs `pnpm typecheck` + `pnpm test`
 - `push` to `prod` (only via PR merge) → runs tests then `wrangler deploy`
 
-Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (scoped to Workers deploy only).
+Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (single token covers both workers — same Cloudflare account).
+
+Per-environment secrets are independent — set them once each before first deploy:
+
+```bash
+# Production
+pnpm exec wrangler secret put MCP_BEARER
+pnpm exec wrangler secret put GITHUB_TOKEN
+
+# Dev (separate worker, separate secrets)
+pnpm exec wrangler secret put MCP_BEARER --env dev
+pnpm exec wrangler secret put GITHUB_TOKEN --env dev
+```
+
+Use a different `MCP_BEARER` per environment so a leaked dev token can't read prod and vice versa.
 
 Protection rules on both branches: require PR, require `test` check, no force push, no deletion, admins enforced.
 
