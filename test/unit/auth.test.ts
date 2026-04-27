@@ -39,9 +39,12 @@ describe("checkBearer", () => {
 });
 
 describe("unauthorized", () => {
-  it("returns 401 with WWW-Authenticate: Bearer", () => {
+  it("returns 401 with Bearer challenge and JSON body", async () => {
     const res = unauthorized();
     expect(res.status).toBe(401);
-    expect(res.headers.get("WWW-Authenticate")).toBe("Bearer");
+    expect(res.headers.get("WWW-Authenticate")).toMatch(/^Bearer/);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+    const body = await res.json();
+    expect(body).toMatchObject({ error: "unauthorized" });
   });
 });
