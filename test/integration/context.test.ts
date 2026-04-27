@@ -115,12 +115,49 @@ describe("wiki_context orchestrator", () => {
     const client = new GithubClient(env);
     const snap = buildSnapshot(await client.fetchTree(), env);
     const bundle = await buildContext(
-      { question: "Foo bar-baz concept entity", domain: "all", budget_tokens: 50 },
+      { question: "Foo bar-baz concept entity", domain: "all", budget_tokens: 10 },
       snap,
       client,
       env,
     );
-    const hasTrunc = bundle.hits.some((h) => h.body.includes("[…truncated"));
+    // Every hit must carry a `truncated` flag; with a tight budget at least
+    // one body should be clipped or only a single short hit fits.
+    expect(bundle.hits.every((h) => typeof h.truncated === "boolean")).toBe(true);
+    const hasTrunc =
+      bundle.hits.some((h) => h.truncated) ||
+      bundle.hits.some((h) => h.body.includes("[…truncated"));
     expect(hasTrunc || bundle.hits.length <= 1).toBe(true);
+  });
+
+  it("emits truncated:false for hits that fit budget", async () => {
+    const env = makeEnv();
+    const client = new GithubClient(env);
+    const snap = buildSnapshot(await client.fetchTree(), env);
+    const bundle = await buildContext(
+      { question: "Foo", domain: "all", budget_tokens: 10000 },
+      snap,
+      client,
+      env,
+    );
+    expect(bundle.hits.length).toBeGreaterThan(0);
+    expect(bundle.hits.every((h) => typeof h.truncated === "boolean")).toBe(true);
+    expect(bundle.hits.some((h) => h.truncated === false)).toBe(true);
+  });
+
+  it("strips frontmatter from hit bodies (redactBody)", async () => {
+    const env = makeEnv();
+    const client = new GithubClient(env);
+    const snap = buildSnapshot(await client.fetchTree(), env);
+    const bundle = await buildContext(
+      { question: "Foo", domain: "all", budget_tokens: 10000 },
+      snap,
+      client,
+      env,
+    );
+    // No hit body should begin with a YAML frontmatter delimiter; the helper
+    // redactBody must strip the leading `---\n…\n---\n` block before output.
+    for (const h of bundle.hits) {
+      expect(h.body.startsWith("---")).toBe(false);
+    }
   });
 });

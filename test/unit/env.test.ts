@@ -118,6 +118,46 @@ describe("rawFolder", () => {
   });
 });
 
+import { bodyCacheMax, redactBody } from "../../src/env";
+
+describe("bodyCacheMax", () => {
+  it("parses positive integer string", () => {
+    expect(bodyCacheMax({ BODY_CACHE_MAX: "1500" } as never)).toBe(1500);
+  });
+
+  it("falls back to 800 default when missing or invalid", () => {
+    expect(bodyCacheMax({} as never)).toBe(800);
+    expect(bodyCacheMax({ BODY_CACHE_MAX: "abc" } as never)).toBe(800);
+    expect(bodyCacheMax({ BODY_CACHE_MAX: "0" } as never)).toBe(800);
+    expect(bodyCacheMax({ BODY_CACHE_MAX: "-10" } as never)).toBe(800);
+  });
+});
+
+describe("redactBody", () => {
+  it("strips a leading YAML frontmatter block", () => {
+    const raw = "---\ntitle: secret\nkey: leak\n---\n\n# Body\ntext here";
+    const out = redactBody(raw);
+    expect(out).not.toContain("---");
+    expect(out).not.toContain("key: leak");
+    expect(out).toContain("# Body");
+    expect(out).toContain("text here");
+  });
+
+  it("is a no-op for body without frontmatter", () => {
+    const raw = "# Body\ntext here";
+    expect(redactBody(raw)).toBe(raw);
+  });
+
+  it("leaves trailing horizontal-rule '---' intact", () => {
+    const raw = "# Body\n\n---\n\nFooter";
+    expect(redactBody(raw)).toBe(raw);
+  });
+
+  it("handles empty input", () => {
+    expect(redactBody("")).toBe("");
+  });
+});
+
 describe("assertEnv — optional priming vars", () => {
   const full = {
     GITHUB_REPO: "a/b",

@@ -71,28 +71,72 @@ describe("MCP tools", () => {
     expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
   });
 
-  it("wiki_list returns discovered types", async () => {
+  it("wiki_list returns discovered types in paginated envelope", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { domain: "personal", type: "entities" });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed[0]).toHaveProperty("path", "personal/wiki/entities/Foo.md");
-    expect(parsed[0]).toHaveProperty("title");
+    const parsed = JSON.parse(result.content[0].text) as {
+      items: Array<{ path: string; title: string }>;
+      total: number;
+      offset: number;
+      limit: number;
+      truncated: boolean;
+    };
+    expect(parsed).toHaveProperty("total");
+    expect(parsed).toHaveProperty("offset", 0);
+    expect(parsed).toHaveProperty("limit");
+    expect(parsed).toHaveProperty("truncated");
+    expect(parsed.items[0]).toHaveProperty("path", "personal/wiki/entities/Foo.md");
+    expect(parsed.items[0]).toHaveProperty("title");
   });
 
   it("wiki_list filters by frontmatter tag", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "sample" });
-    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
-    const paths = parsed.map((p) => p.path).sort();
+    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
+    const paths = parsed.items.map((p) => p.path).sort();
     // Foo + bar-baz both carry tags: [sample]
     expect(paths).toEqual(["personal/wiki/concepts/bar-baz.md", "personal/wiki/entities/Foo.md"]);
   });
 
-  it("wiki_list with unknown tag returns empty array", async () => {
+  it("wiki_list tag filter is case-insensitive", async () => {
+    const server = await createServer(makeEnv());
+    // Tag is "sample" in fixtures; query upper-cased should still match.
+    const result = await server.callTool("wiki_list", { tag: "SAMPLE" });
+    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
+    expect(parsed.items.length).toBeGreaterThan(0);
+  });
+
+  it("wiki_list domain='all' is equivalent to omitted domain", async () => {
+    const server = await createServer(makeEnv());
+    const a = JSON.parse(
+      (await server.callTool("wiki_list", { domain: "all" })).content[0].text,
+    ) as { total: number };
+    const b = JSON.parse((await server.callTool("wiki_list", {})).content[0].text) as {
+      total: number;
+    };
+    expect(a.total).toBe(b.total);
+    expect(a.total).toBeGreaterThan(0);
+  });
+
+  it("wiki_list applies limit + offset and reports truncated flag", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_list", { limit: 1, offset: 0 });
+    const parsed = JSON.parse(result.content[0].text) as {
+      items: unknown[];
+      total: number;
+      truncated: boolean;
+    };
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.total).toBeGreaterThan(1);
+    expect(parsed.truncated).toBe(true);
+  });
+
+  it("wiki_list with unknown tag returns empty items array", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "no-such-tag" });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed).toEqual([]);
+    const parsed = JSON.parse(result.content[0].text) as { items: unknown[]; total: number };
+    expect(parsed.items).toEqual([]);
+    expect(parsed.total).toBe(0);
   });
 
   it("wiki_fetch rejects more than 20 paths with isError", async () => {

@@ -14,6 +14,7 @@ export type Env = {
   RAW_FOLDER?: string;
   SENSITIVE_FRONTMATTER_KEYS?: string;
   SKIP_TOP_DIRS?: string;
+  BODY_CACHE_MAX?: string;
 };
 
 const REQUIRED_KEYS = [
@@ -92,4 +93,21 @@ export function filterFrontmatter(
     if (!denylist.has(k)) out[k] = v;
   }
   return out;
+}
+
+const DEFAULT_BODY_CACHE_MAX = 800;
+
+export function bodyCacheMax(env: Partial<Env>): number {
+  const n = parseInt(env.BODY_CACHE_MAX ?? "", 10);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_BODY_CACHE_MAX;
+  return n;
+}
+
+const FRONTMATTER_BLOCK_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
+
+// SENSITIVE_FRONTMATTER_KEYS only filters the parsed `frontmatter` field on
+// wiki_fetch — agent-facing body excerpts must not carry the raw YAML block.
+export function redactBody(raw: string): string {
+  if (!raw) return raw;
+  return raw.replace(FRONTMATTER_BLOCK_RE, "");
 }
