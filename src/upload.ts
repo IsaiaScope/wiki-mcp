@@ -1,3 +1,7 @@
+import { type Env, maxUploadBytes, rawFolder } from "./env";
+import type { GithubClient } from "./github";
+import type { Snapshot } from "./types";
+
 const MAX_SEGMENTS = 8;
 const MAX_SEGMENT_LEN = 255;
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -37,4 +41,48 @@ export function checkSize(contentBase64: string, maxRawBytes: number): void {
   if (rawBytes > maxRawBytes) {
     throw new Error(`file too large: ${rawBytes} bytes > cap ${maxRawBytes} bytes`);
   }
+}
+
+export type UploadArgs = {
+  domain: string;
+  subpath: string;
+  content_base64: string;
+  message?: string;
+};
+
+export type UploadResult = {
+  ok: true;
+  path: string;
+  commit_sha: string;
+  html_url: string;
+};
+
+export async function uploadFile(
+  args: UploadArgs,
+  snapshot: Snapshot,
+  github: GithubClient,
+  env: Env,
+): Promise<UploadResult> {
+  if (!snapshot.domains.has(args.domain)) {
+    const valid = [...snapshot.domains.keys()].join(", ");
+    throw new Error(`unknown domain '${args.domain}'. Valid: [${valid}]`);
+  }
+
+  const safeSubpath = sanitizeSubpath(args.subpath);
+  checkSize(args.content_base64, maxUploadBytes(env));
+
+  const target = `${args.domain}/${rawFolder(env)}/${safeSubpath}`;
+  const message = args.message ?? `chore(raw): upload ${safeSubpath}`;
+
+  const existingSha = await github.fetchFileSha(target);
+  const put = await github.putFile(target, args.content_base64, message, existingSha ?? undefined);
+
+  github.invalidate();
+
+  return {
+    ok: true,
+    path: target,
+    commit_sha: put.commit_sha,
+    html_url: put.html_url,
+  };
 }
