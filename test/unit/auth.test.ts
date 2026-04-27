@@ -47,4 +47,12 @@ describe("unauthorized", () => {
     const body = await res.json();
     expect(body).toMatchObject({ error: "unauthorized" });
   });
+
+  it("includes resource_metadata in WWW-Authenticate when provided (RFC 9728)", () => {
+    const res = unauthorized("https://example.test/.well-known/oauth-protected-resource");
+    const header = res.headers.get("WWW-Authenticate") ?? "";
+    expect(header).toContain(
+      'resource_metadata="https://example.test/.well-known/oauth-protected-resource"',
+    );
+  });
 });

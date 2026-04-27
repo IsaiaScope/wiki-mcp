@@ -21,11 +21,14 @@ function constantTimeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export function unauthorized(): Response {
+export function unauthorized(resourceMetadataUrl?: string): Response {
+  const challenge = resourceMetadataUrl
+    ? `Bearer realm="wiki-mcp", resource_metadata="${resourceMetadataUrl}"`
+    : 'Bearer realm="wiki-mcp"';
   return new Response(JSON.stringify({ error: "unauthorized" }), {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Bearer realm="wiki-mcp"',
+      "WWW-Authenticate": challenge,
       "Content-Type": "application/json",
     },
   });
