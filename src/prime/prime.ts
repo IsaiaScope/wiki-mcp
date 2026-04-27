@@ -1,6 +1,6 @@
-import type { Env } from "./env";
-import { parseVocabMode } from "./env";
-import type { Domain, PrimeBundle, PrimeVocabMode, Snapshot, ToolName } from "./types";
+import type { Env } from "../env";
+import { parseVocabMode } from "../env";
+import type { Domain, PrimeBundle, PrimeVocabMode, Snapshot, ToolName } from "../types";
 
 const KNOWN_ACRONYMS = new Set(["CCNL", "TFR", "ID", "URL", "API", "MCP", "LLM"]);
 
@@ -38,7 +38,16 @@ const STATIC_TOOL_DESCRIPTIONS: Record<ToolName, string> = {
     "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
   wiki_fetch: "Batch read pages by path. Max 20 paths per call.",
   wiki_list: "List discovered pages, optionally filtered by domain and/or type.",
+  wiki_upload:
+    "Upload a file to the wiki repo at {domain}/raw/{subpath}. Stored as-is, no transformation.",
 };
+
+function buildUploadDescription(snapshot: Snapshot): string {
+  const base = STATIC_TOOL_DESCRIPTIONS.wiki_upload;
+  const domains = [...snapshot.domains.keys()];
+  if (domains.length === 0) return `${base} (No domains discovered yet.)`;
+  return `${base} Valid domains: [${domains.join(", ")}].`;
+}
 
 export function buildPrime(snapshot: Snapshot, env: Env): PrimeBundle {
   const vocabMode = parseVocabMode(env.WIKI_PRIME_VOCAB);
@@ -49,7 +58,7 @@ export function buildPrime(snapshot: Snapshot, env: Env): PrimeBundle {
     vocabMode,
     sha: snapshot.sha,
     instructions: buildInstructions(snapshot, vocab, env, vocabMode, greeting),
-    toolDescriptions: buildToolDescriptions(vocab, vocabMode),
+    toolDescriptions: buildToolDescriptions(vocab, vocabMode, snapshot),
     overviewIndex: buildOverviewIndex(snapshot, env, greeting, vocabMode),
     overviewByDomain: buildOverviewByDomain(snapshot, vocabMode),
   };
@@ -153,8 +162,13 @@ function buildInstructions(
   return parts.join("\n\n");
 }
 
-function buildToolDescriptions(vocab: Vocab, mode: PrimeVocabMode): Record<ToolName, string> {
-  if (mode === "off") return { ...STATIC_TOOL_DESCRIPTIONS };
+function buildToolDescriptions(
+  vocab: Vocab,
+  mode: PrimeVocabMode,
+  snapshot: Snapshot,
+): Record<ToolName, string> {
+  const uploadDesc = buildUploadDescription(snapshot);
+  if (mode === "off") return { ...STATIC_TOOL_DESCRIPTIONS, wiki_upload: uploadDesc };
 
   const baseTail =
     " Read wiki://overview for the current page inventory before deciding between wiki_context, wiki_search, and wiki_fetch.";
@@ -174,6 +188,7 @@ function buildToolDescriptions(vocab: Vocab, mode: PrimeVocabMode): Record<ToolN
     wiki_search: STATIC_TOOL_DESCRIPTIONS.wiki_search,
     wiki_fetch: STATIC_TOOL_DESCRIPTIONS.wiki_fetch,
     wiki_list: STATIC_TOOL_DESCRIPTIONS.wiki_list,
+    wiki_upload: uploadDesc,
   };
 }
 

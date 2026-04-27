@@ -1,32 +1,79 @@
-# wiki-mcp
+<h3 align="center">wiki-mcp 🔥</h3>
 
-Read-only Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy pattern](https://karpathy.bearblog.dev)) to Claude clients. Runs free on Cloudflare Workers. Code is decoupled from any specific wiki — point it at your own private GitHub repo and deploy your own worker.
+<br />
 
-## What it does
+<p align="center">
+  <img src="https://img.shields.io/badge/MCP-2025--06--18-D97757?logo=anthropic&logoColor=white" alt="MCP" />
+  <img src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers" />
+  <img src="https://img.shields.io/badge/TypeScript-5.4-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vitest-1.6-6E9F18?logo=vitest&logoColor=white" alt="Vitest" />
+  <img src="https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white" alt="pnpm" />
+  <img src="https://img.shields.io/badge/Node-20-339933?logo=node.js&logoColor=white" alt="Node" />
+  <img src="https://img.shields.io/badge/Biome-linter-60A5FA?logo=biome&logoColor=white" alt="Biome" />
+</p>
 
-Exposes four MCP tools:
+---
 
-- **`wiki_context(question, domain?, budget_tokens?)`** — primary tool; one call returns schema + indexes + recent log + ranked hits + one-hop wikilink expansion.
-- **`wiki_search(query, domain?, limit?)`** — explicit ranked keyword search.
-- **`wiki_fetch(paths[])`** — batch read pages by exact path (max 20).
-- **`wiki_list(domain?, type?)`** — structured directory listing.
+## 🔥 About
 
-And four resources:
+Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy pattern](https://karpathy.bearblog.dev)) to Claude clients. **Read** access for the four primary tools, plus a single **write** path (`wiki_upload`) that commits arbitrary files into the wiki repo. Runs free on Cloudflare Workers — point it at your own private GitHub repo and deploy your own worker.
 
-- `wiki://schema` — concatenated `CLAUDE.md` + `docs/llm-wiki.md` + per-domain `CLAUDE.md`.
-- `wiki://index/all` — all discovered domain indexes.
-- `wiki://log/recent` — last 50 log entries across domains.
-- `wiki://page/{domain}/{type}/{slug}` — individual page template.
+Companion to [`wikionfire`](https://github.com/IsaiaScope/wikionfire) but agnostic — it works with any wiki shaped like the Karpathy pattern.
 
-**Wiki layout is discovered at runtime** (any top-level dir with `index.md` + `log.md` + `wiki/` is a domain), so adding new domains or page types to your repo requires zero code change in this server.
+## 🛠️ Five MCP tools
 
-## Prerequisites
+| | Tool | Purpose | Mode |
+|-|------|---------|------|
+| 🎁 | **`wiki_context(question, domain?, budget_tokens?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion) | read |
+| 🔍 | **`wiki_search(query, domain?, limit?)`** | ranked keyword search with `{path, title, snippet, score}` | read |
+| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20) | read |
+| 🗂️ | **`wiki_list(domain?, type?)`** | structured directory listing | read |
+| ⬆️ | **`wiki_upload(domain, subpath, content_base64, message?)`** | upload any file (PDF, image, text, binary) under `{domain}/raw/{subpath}` — 25 MB cap, requires `contents:write` | **write** |
 
-- A GitHub repo (private OK) containing a wiki laid out per the LLM Wiki pattern.
-- A Cloudflare account (free tier works — 100k requests/day).
-- Node 20+, `npm`, `git`.
+## 📚 Six MCP resources
 
-## Setup (5 steps)
+| | Resource | Source |
+|-|----------|--------|
+| 📜 | `wiki://schema` | `CLAUDE.md` + `docs/llm-wiki.md` + per-domain `CLAUDE.md` concatenated |
+| 🗂️ | `wiki://index/all` | every discovered domain `index.md` |
+| 📅 | `wiki://log/recent` | last 50 log entries across all domains |
+| 📄 | `wiki://page/{domain}/{type}/{slug}` | individual page template |
+| 🌐 | `wiki://overview` | dynamic top-level inventory (built from snapshot) |
+| 🌐 | `wiki://overview/{domain}` | per-domain page list grouped by type |
+
+**Wiki layout is discovered at runtime** — any top-level dir with `index.md` + `log.md` + `wiki/` is a domain. Adding new domains or page types in your repo requires zero code change here.
+
+## 🗂️ Source layout
+
+The worker is split into seven feature-scoped modules. Each has its own README.
+
+```
+src/
+├── index.ts          worker entry — HTTP routing
+├── server.ts         createServer + buildDeps (state lives here)
+├── env.ts            config + helpers
+├── types.ts          shared types
+│
+├── auth/             📖 README — bearer-token guard
+├── github/           📖 README — REST + raw fetch + write
+├── wiki/             📖 README — discover + frontmatter + wikilinks
+├── search/           📖 README — BM25 + budget + bundle
+├── prime/            📖 README — dynamic instructions + overview
+├── mcp/              📖 README — tool + resource registration
+└── upload/           📖 README — write path + sanitizer
+```
+
+| | Module | Owns |
+|-|--------|------|
+| 🔐 | [`auth/`](src/auth/) | constant-time bearer check, 401 helper, overlap-token rotation |
+| 🐙 | [`github/`](src/github/) | tree fetch (TTL-cached), SHA-pinned raw URL builder, contents API write |
+| 📚 | [`wiki/`](src/wiki/) | runtime domain discovery, YAML frontmatter, `[[link\|alias#section]]` parsing |
+| 🔍 | [`search/`](src/search/) | BM25 ranking, token budget, full bundle assembly |
+| 🪄 | [`prime/`](src/prime/) | dynamic `instructions`, tool descriptions, `wiki://overview` resources |
+| 🔌 | [`mcp/`](src/mcp/) | tool + resource registration, zod schemas, error surface |
+| ⬆️ | [`upload/`](src/upload/) | write orchestrator, subpath sanitizer, size cap |
+
+## ⚙️ Setup
 
 ```bash
 # 1. Clone
@@ -43,7 +90,7 @@ pnpm prepare                                       # installs husky hooks
 pnpm exec wrangler login                           # one-time browser OAuth
 openssl rand -hex 32                               # copy this token
 pnpm exec wrangler secret put MCP_BEARER           # paste the openssl hex
-pnpm exec wrangler secret put GITHUB_TOKEN         # paste a fine-grained PAT (contents:read)
+pnpm exec wrangler secret put GITHUB_TOKEN         # paste a fine-grained PAT
 
 # 4. Deploy
 pnpm deploy
@@ -56,15 +103,15 @@ curl https://wiki-mcp.<your-subdomain>.workers.dev/health
 
 Requires pnpm 10+ and Node 20+.
 
-### Creating the GitHub PAT
+### 🔑 GitHub PAT (fine-grained)
 
 1. github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new.
 2. Resource owner: your user.
 3. Repository access: **only** the wiki repo.
-4. Permissions → Repository permissions → **Contents: Read-only**.
+4. Permissions → Repository permissions → **Contents: Read and write** (write is required by `wiki_upload`; leave at read-only if you do not plan to use that tool).
 5. Expiration: 1 year. Copy the token (shown once).
 
-## Add the connector to Claude clients
+## 🔌 Add the connector to Claude
 
 ### Claude Code
 
@@ -82,7 +129,7 @@ Add to `~/.claude.json` or project-level `.mcp.json`:
 }
 ```
 
-Restart Claude Code. Verify with `/mcp` or ask "list my MCP servers".
+Restart Claude Code. Verify with `/mcp`.
 
 ### Claude Desktop
 
@@ -100,77 +147,71 @@ Create a Project, attach the connector, and paste project-level instructions suc
 
 > You have access to my personal knowledge wiki via the "wiki" MCP connector. Before answering questions that may involve my entities, concepts, or past sources, call `wiki_context`. Cite with `[[path]]` per the wiki convention.
 
-## Configuration surface
+## ⚙️ Configuration surface
 
 Everything is env-driven. Fork this repo and point it at your wiki — no code changes required.
 
-| Var / Secret | Set via | Purpose |
-|--------------|---------|---------|
-| `GITHUB_REPO` | `wrangler.toml [vars]` | Source repo `owner/name` |
-| `GITHUB_BRANCH` | `wrangler.toml [vars]` | Branch to read (default `main`) |
-| `WIKI_SERVER_NAME` | `wrangler.toml [vars]` | Server display name (in `instructions` field) |
-| `CACHE_TTL_SECONDS` | `wrangler.toml [vars]` | Snapshot cache TTL (default `60`) |
-| `SCHEMA_GLOBS` | `wrangler.toml [vars]` | Comma-list of schema file globs |
-| `DOMAIN_REQUIRED_FILES` | `wrangler.toml [vars]` | Files that mark a dir as a domain |
-| `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
-| `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
-| `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT, `contents:read` |
-| `WIKI_PRIME_VOCAB` | `wrangler.toml [vars]` | Priming privacy mode: `structural` (default, no titles in instructions/tools), `full` (titles injected, capped), `off` (minimal) |
-| `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
+| | Var / Secret | Set via | Purpose |
+|-|--------------|---------|---------|
+| 🐙 | `GITHUB_REPO` | `wrangler.toml [vars]` | Source repo `owner/name` |
+| 🌿 | `GITHUB_BRANCH` | `wrangler.toml [vars]` | Branch to read (default `main`) |
+| 🏷️ | `WIKI_SERVER_NAME` | `wrangler.toml [vars]` | Server display name (in `instructions`) |
+| ⏱️ | `CACHE_TTL_SECONDS` | `wrangler.toml [vars]` | Snapshot cache TTL (default `60`) |
+| 📜 | `SCHEMA_GLOBS` | `wrangler.toml [vars]` | Comma-list of schema file globs |
+| 🧱 | `DOMAIN_REQUIRED_FILES` | `wrangler.toml [vars]` | Files that mark a dir as a domain |
+| 📏 | `MAX_UPLOAD_BYTES` | `wrangler.toml [vars]` | Max upload size in bytes (default `26214400` = 25 MB) |
+| 📁 | `RAW_FOLDER` | `wrangler.toml [vars]` | Subfolder under each domain for `wiki_upload` (default `raw`) |
+| 🪄 | `WIKI_PRIME_VOCAB` | `wrangler.toml [vars]` | Priming privacy: `structural` (default), `full`, or `off` |
+| 👋 | `WIKI_PRIME_GREETING` | `wrangler.toml [vars]` | Optional one-line greeting prepended to instructions and overview |
+| 🔐 | `MCP_BEARER` | `wrangler secret put` | Client auth bearer token |
+| 🔁 | `MCP_BEARER_NEXT` | `wrangler secret put` | Optional overlap token for rotation |
+| 🐙 | `GITHUB_TOKEN` | `wrangler secret put` | GitHub PAT — `contents:read` minimum, `contents:write` for `wiki_upload` |
 
-## Server priming
+## 🪄 Server priming
 
-On every `initialize`, the server emits a dynamic `instructions` field computed from your wiki's actual shape (domains, types, page counts). Two resources are always exposed:
+On every `initialize`, the server emits a dynamic `instructions` field computed from your wiki's actual shape (domains, types, page counts). Privacy is controlled by `WIKI_PRIME_VOCAB`:
+
+| | Mode | Behavior |
+|-|------|----------|
+| 🛡️ | `structural` (default) | per-domain page counts and type breakdown — no titles in passive surfaces |
+| 🔥 | `full` | titles injected into instructions + tool descriptions, capped at 50/30 |
+| 🔇 | `off` | minimal greeting only, no enumeration |
+
+Two overview resources are always exposed:
 
 - `wiki://overview` — domain map with per-domain slice URIs
 - `wiki://overview/{domain}` — page listing for one domain, each page as a `[[path]]` link with a prettified title
 
-### Privacy
+See [`src/prime/`](src/prime/) for the full design.
 
-`WIKI_PRIME_VOCAB` controls what gets injected into passive text surfaces:
-
-| Mode | `instructions` | Tool descriptions | `wiki://overview` |
-|------|---------------|--------------------|-------------------|
-| `structural` (default) | Domain names + type names + counts | Structural only | Full titles |
-| `full` | Structural + trigger vocab (top 50 titles) | Structural + trigger vocab (top 30 titles) | Full titles |
-| `off` | One-liner | Static defaults (pre-priming) | Suppressed |
-
-Titles in `wiki://overview*` always appear because fetching a resource is an explicit client action. Text surfaces are the sensitive layer — keep `structural` as default for shared workers. Only flip to `full` for single-user workers where max-signal matters more than leak surface.
-
-### Greeting
-
-`WIKI_PRIME_GREETING` is a free-form one-line (or short multi-line) string prepended to both `instructions` and `wiki://overview`. Use it for fork identity, e.g. `WIKI_PRIME_GREETING="Riva's work wiki — Italian-language labor concepts."`.
-
-No code changes required to fork — set both vars in `wrangler.toml [vars]` (or leave unset for defaults) and redeploy.
-
-## Development
+## 🧪 Development
 
 ```bash
 pnpm dev                   # wrangler dev, local server on :8787
-pnpm test                  # vitest
+pnpm test                  # vitest (174 tests)
 pnpm test:coverage         # with coverage report
 pnpm typecheck             # tsc --noEmit
 pnpm lint                  # ultracite check (biome under the hood)
 pnpm fix                   # ultracite fix
 ```
 
-124 tests across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
+**174 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
-## Tooling
+## 🛠️ Tooling
 
-- **pnpm** 10+ for package management
-- **biome** + **ultracite** for linting and formatting
-- **husky** + **lint-staged** for pre-commit checks
-- **post-commit hook** auto-bumps `package.json` version (patch by default; `feat:` → minor; `!:` / `BREAKING CHANGE` → major) and amends into the same commit
+| | Tool | Role |
+|-|------|------|
+| 📦 | **pnpm** 10+ | package manager |
+| 🧹 | **biome** + **ultracite** | linter + formatter |
+| 🪝 | **husky** + **lint-staged** | pre-commit checks |
+| 🔢 | **post-commit hook** | auto-bumps `package.json` version (patch by default; `feat:` → minor; `!:` / `BREAKING CHANGE` → major) |
 
-## CI/CD + branch flow
+## 🚀 CI/CD + branch flow
 
-Two protected branches, no direct pushes. Each branch maps to its own Cloudflare Workers environment.
+Two protected branches, no direct pushes:
 
-| Branch | Worker name | Worker URL | Triggered by |
-|---|---|---|---|
-| `dev` | `wiki-mcp-dev` | `https://wiki-mcp-dev.<subdomain>.workers.dev` | PR merge into `dev` |
-| `prod` | `wiki-mcp` | `https://wiki-mcp.<subdomain>.workers.dev` | PR merge into `prod` |
+- **`dev`** — default branch, integration target. PRs must pass the `test` job (typecheck + vitest).
+- **`prod`** — release branch. PR merges from `dev` trigger deploy to Cloudflare Workers.
 
 ```
   feature branch ──PR──► dev (CI: test + deploy-dev) ──PR──► prod (CI: test + deploy)
@@ -178,8 +219,7 @@ Two protected branches, no direct pushes. Each branch maps to its own Cloudflare
 
 `.github/workflows/deploy.yml`:
 - `pull_request` on `dev` or `prod` → runs `pnpm typecheck` + `pnpm test`
-- `push` to `dev` (PR merge into dev) → runs tests then `wrangler deploy --env dev` to the `wiki-mcp-dev` worker
-- `push` to `prod` (PR merge into prod) → runs tests then `wrangler deploy` to the `wiki-mcp` worker
+- `push` to `prod` (only via PR merge) → runs tests then `wrangler deploy`
 
 Required repo secret: `CLOUDFLARE_API_TOKEN` in Settings → Secrets → Actions (single token covers both workers — same Cloudflare account).
 
@@ -199,7 +239,7 @@ Use a different `MCP_BEARER` per environment so a leaked dev token can't read pr
 
 Protection rules on both branches: require PR, require `test` check, no force push, no deletion, admins enforced.
 
-## Architecture
+## 🏛️ Architecture
 
 ```
 Claude client (Code / Desktop / claude.ai)
@@ -213,6 +253,18 @@ GitHub API + raw.githubusercontent.com   (your private wiki repo)
 
 Stateless. Fresh `McpServer` per request, 60 s in-memory snapshot cache keyed by commit SHA. Page bodies fetched via SHA-pinned raw URLs — Cloudflare edge cache handles the rest.
 
-## License
+## 📖 Reading
 
-MIT. See `LICENSE`.
+- Pattern — [Karpathy gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+- Companion wiki — [wikionfire](https://github.com/IsaiaScope/wikionfire)
+- Per-module READMEs — `src/<module>/README.md`
+
+## 📄 License
+
+MIT. See [`LICENSE`](LICENSE).
+
+---
+
+<p align="center">
+  Made with 🧠 and a lot of TypeScript.
+</p>

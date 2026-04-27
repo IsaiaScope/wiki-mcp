@@ -1,11 +1,17 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { buildSnapshot } from "./discover";
 import { assertEnv, type Env } from "./env";
 import { GithubClient } from "./github";
+import {
+  type ReadResult,
+  type ResourceContext,
+  registerResources,
+  registerTools,
+  type ToolContext,
+  type ToolResult,
+} from "./mcp";
 import { buildPrime } from "./prime";
-import { type ReadResult, type ResourceContext, registerResources } from "./resources";
-import { registerTools, type ToolContext, type ToolResult } from "./tools";
 import type { PrimeBundle, Snapshot } from "./types";
+import { buildSnapshot } from "./wiki";
 
 export type ServerHandle = {
   raw: McpServer;

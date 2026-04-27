@@ -1,7 +1,7 @@
-import type { Env } from "./env";
-import { parseCsv } from "./env";
-import type { TreeResponse } from "./github";
-import type { Domain, Snapshot } from "./types";
+import type { Env } from "../env";
+import { parseCsv } from "../env";
+import type { TreeResponse } from "../github";
+import type { Domain, Snapshot } from "../types";
 
 const SKIP_TOP_DIRS = new Set([
   ".git",
