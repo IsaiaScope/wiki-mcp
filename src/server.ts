@@ -32,9 +32,15 @@ export function buildDeps(env: Env): ServerDeps {
   const rebuild = (s: Snapshot): Snapshot => {
     snapshot = s;
     prime = buildPrime(s, env);
-    console.log(
-      `[prime] rebuilt sha=${s.sha.slice(0, 7)} domains=${s.domains.size} vocabMode=${prime.vocabMode}`,
-    );
+    if (prime.vocabMode !== "off") {
+      let titleCount = 0;
+      for (const perType of prime.overviewByDomain.values()) {
+        titleCount += (perType.match(/^- \[\[/gm) ?? []).length;
+      }
+      console.log(
+        `[prime] rebuilt sha=${s.sha.slice(0, 7)} domains=${s.domains.size} vocabMode=${prime.vocabMode} titles=${titleCount}`,
+      );
+    }
     return s;
   };
 
@@ -53,7 +59,7 @@ export function buildDeps(env: Env): ServerDeps {
   const getPrime = async (): Promise<PrimeBundle> => {
     if (prime) return prime;
     await getSnapshot();
-    // biome-ignore lint/style/noNonNullAssertion: rebuild sets both in lockstep
+    // rebuild() sets both snapshot and prime synchronously, so prime is non-null after getSnapshot resolves
     return prime!;
   };
 

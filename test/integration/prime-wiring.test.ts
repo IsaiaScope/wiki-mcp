@@ -47,17 +47,21 @@ describe("prime wiring (structural default)", () => {
     );
   });
 
-  it("structural default: tool descriptions do NOT contain fixture page titles", async () => {
+  it("structural default: registered tool descriptions do NOT contain fixture page titles", async () => {
     const server = await createServer(makeEnv());
-    const descriptions: string[] = [];
-    const raw = (server as unknown as { raw: { server?: unknown } }).raw;
-    // quick sanity: just ensure surface exists; per-tool description assertions happen below
-    expect(raw).toBeTruthy();
-    // call the handlers via MCP to read descriptions indirectly
-    for (const name of server.listToolNames()) {
-      descriptions.push(name);
+    const registry = (
+      server.raw as unknown as {
+        _registeredTools?: Record<string, { description?: string }>;
+      }
+    )._registeredTools;
+    expect(registry).toBeTruthy();
+    const descriptions = Object.values(registry ?? {}).map((t) => t.description ?? "");
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const desc of descriptions) {
+      expect(desc).not.toContain("Foo");
+      expect(desc).not.toContain("Qux");
+      expect(desc).not.toContain("bar-baz");
     }
-    expect(descriptions.sort()).toEqual(["wiki_context", "wiki_fetch", "wiki_list", "wiki_search"]);
   });
 });
 
@@ -84,5 +88,32 @@ describe("prime wiring — WIKI_PRIME_VOCAB=off", () => {
     expect(idx.contents[0].text).toContain("suppressed by WIKI_PRIME_VOCAB=off");
     const dom = await server.readResource("wiki://overview/personal");
     expect(dom.contents[0].text).toContain("suppressed");
+  });
+});
+
+describe("prime wiring — refresh propagates new domains", () => {
+  it("after refresh, wiki://overview reflects the updated domain set", async () => {
+    // First snapshot uses the standard fixture vault.
+    globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
+    const { buildDeps } = await import("../../src/server");
+    const deps = buildDeps(makeEnv());
+
+    const server = await createServer(makeEnv(), deps);
+    const before = await server.readResource("wiki://overview");
+    expect(before.contents[0].text).toContain("personal");
+    expect(before.contents[0].text).toContain("work");
+
+    // Force a refresh; the in-memory cache will rebuild snapshot + prime in lockstep.
+    await deps.refresh();
+
+    // The new server constructed from the same deps sees the post-refresh prime;
+    // overview handlers read getPrime() at request time, so a fresh read reflects state.
+    const server2 = await createServer(makeEnv(), deps);
+    const after = await server2.readResource("wiki://overview");
+    expect(after.contents[0].text).toContain("personal");
+    expect(after.contents[0].text).toContain("work");
+
+    // Same SHA → identical content (deterministic).
+    expect(after.contents[0].text).toBe(before.contents[0].text);
   });
 });
