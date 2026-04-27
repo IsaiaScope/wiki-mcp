@@ -40,6 +40,8 @@ const STATIC_TOOL_DESCRIPTIONS: Record<ToolName, string> = {
   wiki_list: "List discovered pages, optionally filtered by domain and/or type.",
   wiki_upload:
     "Upload a file to the wiki repo at {domain}/raw/{subpath}. Stored as-is, no transformation.",
+  wiki_read_raw:
+    "Read a binary or text file from {domain}/raw/{subpath} as base64. Use after wiki_list/wiki_search surfaces the path.",
 };
 
 function buildUploadDescription(snapshot: Snapshot): string {
@@ -189,6 +191,7 @@ function buildToolDescriptions(
     wiki_fetch: STATIC_TOOL_DESCRIPTIONS.wiki_fetch,
     wiki_list: STATIC_TOOL_DESCRIPTIONS.wiki_list,
     wiki_upload: uploadDesc,
+    wiki_read_raw: STATIC_TOOL_DESCRIPTIONS.wiki_read_raw,
   };
 }
 

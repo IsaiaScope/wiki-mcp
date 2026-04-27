@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { Env } from "../env";
+import { type Env, filterFrontmatter, sensitiveFrontmatterKeys } from "../env";
 import type { GithubClient } from "../github";
+import { readRawFile } from "../raw";
 import { buildContext, rankDocs } from "../search";
 import type { PrimeBundle, Snapshot } from "../types";
 import { uploadFile } from "../upload";
@@ -31,6 +32,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
         question: z.string(),
         domain: z.string().optional(),
         budget_tokens: z.number().int().positive().max(12000).optional(),
+        include_log: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -96,6 +98,17 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   );
   table.set("wiki_upload", (raw) => wikiUploadHandler(raw, ctx));
 
+  server.registerTool(
+    "wiki_read_raw",
+    {
+      description: ctx.prime.toolDescriptions.wiki_read_raw,
+      inputSchema: { path: z.string() },
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) => wikiReadRawHandler(args, ctx),
+  );
+  table.set("wiki_read_raw", (raw) => wikiReadRawHandler(raw, ctx));
+
   return {
     names: () => [...table.keys()],
     call: async (name: string, args: unknown): Promise<ToolResult> => {
@@ -114,6 +127,7 @@ const contextSchema = z.object({
   question: z.string(),
   domain: z.string().optional().default("all"),
   budget_tokens: z.number().optional().default(6000),
+  include_log: z.boolean().optional().default(true),
 });
 async function wikiContextHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = contextSchema.safeParse(raw);
@@ -203,12 +217,17 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
+    const knownPaths = new Set(snap.allPaths);
+    const denylist = sensitiveFrontmatterKeys(ctx.env);
     const out = await Promise.all(
       parsed.data.paths.map(async (p) => {
+        if (!knownPaths.has(p)) {
+          return { path: p, content: "", frontmatter: {}, error: "path not in snapshot" };
+        }
         try {
           const body = await ctx.github.fetchBody(snap.sha, p);
           const fm = parseFrontmatter(body, { pathHint: p });
-          return { path: p, content: body, frontmatter: fm.data };
+          return { path: p, content: body, frontmatter: filterFrontmatter(fm.data, denylist) };
         } catch (e) {
           return { path: p, content: "", frontmatter: {}, error: (e as Error).message };
         }
@@ -258,6 +277,19 @@ async function wikiUploadHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
   try {
     const snap = await ctx.getSnapshot();
     const result = await uploadFile(parsed.data, snap, ctx.github, ctx.env);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  } catch (e) {
+    return errorResult((e as Error).message);
+  }
+}
+
+const readRawSchema = z.object({ path: z.string() });
+async function wikiReadRawHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
+  const parsed = readRawSchema.safeParse(raw);
+  if (!parsed.success) return errorResult(`invalid input: ${parsed.error.message}`);
+  try {
+    const snap = await ctx.getSnapshot();
+    const result = await readRawFile(parsed.data, snap, ctx.github, ctx.env);
     return { content: [{ type: "text", text: JSON.stringify(result) }] };
   } catch (e) {
     return errorResult((e as Error).message);

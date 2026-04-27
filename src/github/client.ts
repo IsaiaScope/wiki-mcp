@@ -63,6 +63,17 @@ export class GithubClient {
     return await res.text();
   }
 
+  async fetchBytesBase64(sha: string, path: string): Promise<string> {
+    const res = await fetch(this.rawUrl(sha, path), {
+      headers: { "User-Agent": "wiki-mcp" },
+    });
+    if (!res.ok) {
+      throw new Error(`Raw fetch failed for ${path}: ${res.status}`);
+    }
+    const ab = await res.arrayBuffer();
+    return arrayBufferToBase64(ab);
+  }
+
   private contentsUrl(path: string): string {
     const [owner, repo] = this.env.GITHUB_REPO.split("/");
     const encoded = path
@@ -159,4 +170,14 @@ export class GithubClient {
     if (!this.cache) return true;
     return Date.now() - this.cache.at >= ttlMs(this.env);
   }
+}
+
+function arrayBufferToBase64(ab: ArrayBuffer): string {
+  const bytes = new Uint8Array(ab);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.byteLength; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }

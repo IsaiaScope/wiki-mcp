@@ -9,6 +9,7 @@ export type ContextInput = {
   question: string;
   domain: "all" | string;
   budget_tokens: number;
+  include_log?: boolean;
 };
 
 const CITATION_INSTRUCTIONS =
@@ -120,7 +121,8 @@ export async function buildContext(
 
   const indexes = await readIndexes(snap, client, input.domain);
   const schema = await readSchema(snap, client);
-  const recent_log = await readRecentLog(snap, client, input.domain);
+  const recent_log =
+    input.include_log === false ? [] : await readRecentLog(snap, client, input.domain);
 
   return {
     schema,

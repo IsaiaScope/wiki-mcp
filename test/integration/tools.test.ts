@@ -12,13 +12,14 @@ describe("MCP tools", () => {
     globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
   });
 
-  it("tools/list returns five tools", async () => {
+  it("tools/list returns six tools", async () => {
     const server = await createServer(makeEnv());
     const names = server.listToolNames();
     expect(names.sort()).toEqual([
       "wiki_context",
       "wiki_fetch",
       "wiki_list",
+      "wiki_read_raw",
       "wiki_search",
       "wiki_upload",
     ]);
@@ -67,6 +68,37 @@ describe("MCP tools", () => {
     expect(result.isError).toBe(true);
   });
 
+  it("wiki_fetch strips SENSITIVE_FRONTMATTER_KEYS from output", async () => {
+    const server = await createServer(makeEnv({ SENSITIVE_FRONTMATTER_KEYS: "kind,first_seen" }));
+    const result = await server.callTool("wiki_fetch", {
+      paths: ["personal/wiki/entities/Foo.md"],
+    });
+    const parsed = JSON.parse(result.content[0].text) as Array<{
+      path: string;
+      frontmatter: Record<string, unknown>;
+    }>;
+    expect(parsed[0].frontmatter).not.toHaveProperty("kind");
+    expect(parsed[0].frontmatter).not.toHaveProperty("first_seen");
+    expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
+  });
+
+  it("wiki_fetch rejects paths not in snapshot per-path", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_fetch", {
+      paths: ["secret/file.md", "personal/wiki/entities/Foo.md"],
+    });
+    const parsed = JSON.parse(result.content[0].text) as Array<{
+      path: string;
+      content: string;
+      error?: string;
+    }>;
+    const known = parsed.find((p) => p.path === "personal/wiki/entities/Foo.md");
+    const unknown = parsed.find((p) => p.path === "secret/file.md");
+    expect(known?.content).not.toBe("");
+    expect(unknown?.content).toBe("");
+    expect(unknown?.error).toMatch(/not in snapshot/);
+  });
+
   it("wiki_upload rejects unknown domain", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_upload", {
@@ -87,6 +119,44 @@ describe("MCP tools", () => {
     });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/traversal/);
+  });
+
+  it("wiki_read_raw returns base64 of a raw file", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_read_raw", {
+      path: "personal/raw/note.pdf",
+    });
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.content[0].text) as {
+      ok: boolean;
+      path: string;
+      content_base64: string;
+      bytes: number;
+    };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.path).toBe("personal/raw/note.pdf");
+    expect(parsed.bytes).toBeGreaterThan(0);
+    // base64 round-trip
+    const decoded = Buffer.from(parsed.content_base64, "base64").toString("binary");
+    expect(decoded).toContain("FAKE PDF BYTES");
+  });
+
+  it("wiki_read_raw rejects path outside raw/", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_read_raw", {
+      path: "personal/wiki/entities/Foo.md",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/under personal\/raw\//);
+  });
+
+  it("wiki_read_raw rejects unknown path", async () => {
+    const server = await createServer(makeEnv());
+    const result = await server.callTool("wiki_read_raw", {
+      path: "secret/raw/x.pdf",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/not in snapshot/);
   });
 
   it("wiki_upload rejects empty content", async () => {

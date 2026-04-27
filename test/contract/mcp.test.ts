@@ -14,7 +14,7 @@ describe("MCP contract", () => {
     globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
   });
 
-  it("tools/list over real JSON-RPC returns 5 tools with schemas", async () => {
+  it("tools/list over real JSON-RPC returns 6 tools with schemas", async () => {
     const handle = await createServer(makeEnv());
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
     await handle.raw.connect(serverT);
@@ -28,6 +28,7 @@ describe("MCP contract", () => {
       "wiki_context",
       "wiki_fetch",
       "wiki_list",
+      "wiki_read_raw",
       "wiki_search",
       "wiki_upload",
     ]);
