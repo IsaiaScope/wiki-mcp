@@ -5,12 +5,13 @@ import type { Env } from "./env";
 import { parseFrontmatter } from "./frontmatter";
 import type { GithubClient } from "./github";
 import { rankDocs } from "./rank";
-import type { Snapshot } from "./types";
+import type { PrimeBundle, Snapshot } from "./types";
 
 export type ToolContext = {
   env: Env;
   github: GithubClient;
   getSnapshot: () => Promise<Snapshot>;
+  prime: PrimeBundle;
 };
 
 export type ToolResult = {
@@ -24,8 +25,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_context",
     {
-      description:
-        "Return a full knowledge bundle (schema + indexes + log tail + ranked hits + one-hop link expansion) for a question. Primary tool; call this first for wiki-relevant questions.",
+      description: ctx.prime.toolDescriptions.wiki_context,
       inputSchema: {
         question: z.string(),
         domain: z.string().optional(),
@@ -40,8 +40,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_search",
     {
-      description:
-        "Explicit keyword search over wiki metadata. Returns ranked {path,title,snippet,score}.",
+      description: ctx.prime.toolDescriptions.wiki_search,
       inputSchema: {
         query: z.string(),
         domain: z.string().optional(),
@@ -56,7 +55,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_fetch",
     {
-      description: "Batch read pages by path. Max 20 paths per call.",
+      description: ctx.prime.toolDescriptions.wiki_fetch,
       inputSchema: {
         paths: z.array(z.string()).min(1).max(20),
       },
@@ -69,7 +68,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "wiki_list",
     {
-      description: "List discovered pages, optionally filtered by domain and/or type.",
+      description: ctx.prime.toolDescriptions.wiki_list,
       inputSchema: {
         domain: z.string().optional(),
         type: z.string().optional(),

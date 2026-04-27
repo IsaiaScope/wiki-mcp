@@ -37,6 +37,35 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
   table.set("wiki://log/recent", () => readLogRecent(ctx));
 
   server.registerResource(
+    "overview",
+    "wiki://overview",
+    {
+      description: "High-level map of discovered domains with per-domain slice URIs",
+      mimeType: "text/markdown",
+    },
+    async () => ({
+      contents: [{ uri: "wiki://overview", text: ctx.prime.overviewIndex }],
+    }),
+  );
+  table.set("wiki://overview", async () => ({
+    contents: [{ uri: "wiki://overview", text: ctx.prime.overviewIndex }],
+  }));
+
+  for (const [dname, body] of ctx.prime.overviewByDomain) {
+    const uri = `wiki://overview/${dname}`;
+    server.registerResource(
+      `overview-${dname}`,
+      uri,
+      {
+        description: `Overview of the ${dname} domain`,
+        mimeType: "text/markdown",
+      },
+      async () => ({ contents: [{ uri, text: body }] }),
+    );
+    table.set(uri, async () => ({ contents: [{ uri, text: body }] }));
+  }
+
+  server.registerResource(
     "page",
     new ResourceTemplate("wiki://page/{domain}/{type}/{slug}", { list: undefined }),
     { description: "Individual wiki page", mimeType: "text/markdown" },
@@ -60,6 +89,13 @@ export function registerResources(server: McpServer, ctx: ResourceContext) {
           decodeURIComponent(m[3]),
           uri,
         );
+      const overviewMatch = uri.match(/^wiki:\/\/overview\/(.+)$/);
+      if (overviewMatch) {
+        const known = Array.from(ctx.prime.overviewByDomain.keys()).join(", ") || "(none)";
+        throw new Error(
+          `Unknown domain in overview URI: ${overviewMatch[1]}. Known domains: ${known}`,
+        );
+      }
       throw new Error(`Unknown resource URI: ${uri}`);
     },
   };
