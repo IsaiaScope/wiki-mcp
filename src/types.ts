@@ -30,6 +30,7 @@ export type Hit = {
   score: number;
   reason: string;
   body: string;
+  truncated: boolean;
   links_expanded: string[];
 };
 
@@ -39,6 +40,21 @@ export type Bundle = {
   recent_log: string[];
   hits: Hit[];
   citation_instructions: string;
+};
+
+export type WikiListItem = {
+  path: string;
+  title: string;
+  type: string;
+  domain: string;
+};
+
+export type WikiListResult = {
+  items: WikiListItem[];
+  total: number;
+  offset: number;
+  limit: number;
+  truncated: boolean;
 };
 
 export type GithubTreeEntry = {

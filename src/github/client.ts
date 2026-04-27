@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { ttlMs } from "../env";
+import { bodyCacheMax, ttlMs } from "../env";
 import type { GithubTreeEntry } from "../types";
 
 export type TreeResponse = {
@@ -11,8 +11,6 @@ export type TreeResponse = {
 type CacheEntry = { value: TreeResponse; at: number };
 type BodyCacheEntry = { value: string; at: number };
 
-const BODY_CACHE_MAX = 200;
-
 export type PutFileResult = {
   content_sha: string;
   commit_sha: string;
@@ -22,8 +20,11 @@ export type PutFileResult = {
 export class GithubClient {
   private cache: CacheEntry | null = null;
   private bodyCache = new Map<string, BodyCacheEntry>();
+  private bodyCacheCap: number;
 
-  constructor(private env: Env) {}
+  constructor(private env: Env) {
+    this.bodyCacheCap = bodyCacheMax(env);
+  }
 
   async fetchTree(): Promise<TreeResponse> {
     const now = Date.now();
@@ -63,8 +64,13 @@ export class GithubClient {
     const ttl = ttlMs(this.env);
     const cached = this.bodyCache.get(cacheKey);
     if (cached && now - cached.at < ttl) {
+      // True LRU: delete + re-insert refreshes recency so this entry
+      // survives the next eviction sweep.
+      this.bodyCache.delete(cacheKey);
+      this.bodyCache.set(cacheKey, cached);
       return cached.value;
     }
+    if (cached) this.bodyCache.delete(cacheKey);
     const res = await fetch(this.rawUrl(sha, path), {
       headers: { "User-Agent": "wiki-mcp" },
     });
@@ -77,10 +83,10 @@ export class GithubClient {
   }
 
   private storeBody(key: string, value: string, at: number): void {
-    if (this.bodyCache.size >= BODY_CACHE_MAX && !this.bodyCache.has(key)) {
-      // simple LRU-ish eviction: drop oldest insertion
-      const first = this.bodyCache.keys().next().value;
-      if (first !== undefined) this.bodyCache.delete(first);
+    while (this.bodyCache.size >= this.bodyCacheCap && !this.bodyCache.has(key)) {
+      const oldest = this.bodyCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.bodyCache.delete(oldest);
     }
     this.bodyCache.set(key, { value, at });
   }

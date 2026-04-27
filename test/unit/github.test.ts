@@ -85,6 +85,26 @@ describe("GithubClient", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("respects BODY_CACHE_MAX env and evicts least-recently-used entries", async () => {
+    fetchSpy.mockImplementation(async () => new Response("body"));
+    // cap = 2 forces eviction after 3 distinct keys.
+    const client = new GithubClient(makeEnv({ BODY_CACHE_MAX: "2", CACHE_TTL_SECONDS: "60" }));
+    await client.fetchBody("sha", "a.md"); // [a]
+    await client.fetchBody("sha", "b.md"); // [a, b]
+    // Touch 'a' so it becomes most recently used: [b, a]
+    await client.fetchBody("sha", "a.md");
+    // Inserting 'c' must evict 'b', not 'a'.
+    await client.fetchBody("sha", "c.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+
+    // 'a' should still be cached → no extra fetch.
+    await client.fetchBody("sha", "a.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    // 'b' was evicted → must refetch.
+    await client.fetchBody("sha", "b.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+  });
+
   it("invalidate() drops body cache", async () => {
     fetchSpy.mockResolvedValueOnce(new Response("v1"));
     fetchSpy.mockResolvedValueOnce(new Response("v2"));

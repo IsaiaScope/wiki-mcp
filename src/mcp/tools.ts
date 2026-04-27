@@ -1,11 +1,19 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type Env, filterFrontmatter, sensitiveFrontmatterKeys } from "../env";
+import { type Env, filterFrontmatter, redactBody, sensitiveFrontmatterKeys } from "../env";
 import type { GithubClient } from "../github";
 import { readRawFile } from "../raw";
 import { buildContext, pageRankDoc, rankDocs } from "../search";
-import type { PrimeBundle, Snapshot } from "../types";
+import { knownPathsOf } from "../snapshot-cache";
+import type { PrimeBundle, Snapshot, WikiListResult } from "../types";
 import { uploadFile } from "../upload";
+import {
+  arrayIncludesIgnoreCase,
+  eqIgnoreCase,
+  isAllDomain,
+  pathToText,
+  toStringArray,
+} from "../util";
 import { parseFrontmatter } from "../wiki";
 
 export type ToolContext = {
@@ -78,6 +86,8 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
         tag: z.string().optional(),
         entity: z.string().optional(),
         concept: z.string().optional(),
+        limit: z.number().int().positive().max(1000).optional(),
+        offset: z.number().int().min(0).optional(),
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -190,19 +200,21 @@ async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
 
   try {
     const snap = await ctx.getSnapshot();
+    const knownPaths = knownPathsOf(snap);
     const candidatePaths: string[] = [];
     for (const [name, dom] of snap.domains) {
-      if (parsed.data.domain !== "all" && parsed.data.domain !== name) continue;
-      for (const [, paths] of dom.wikiTypes) candidatePaths.push(...paths);
+      if (!isAllDomain(parsed.data.domain) && !eqIgnoreCase(parsed.data.domain, name)) continue;
+      for (const [, paths] of dom.wikiTypes) {
+        // Drop paths missing from the snapshot tree to avoid 404s in stage 2
+        // when domain metadata drifts; mirrors the guard in wiki_fetch.
+        for (const p of paths) if (knownPaths.has(p)) candidatePaths.push(p);
+      }
     }
 
     // Stage 1: cheap path-token rank, then pad shortlist with the rest of
     // the corpus up to limit*2. Padding matters: a query may have zero or
     // few path-token matches, but a strong body+frontmatter match (e.g. tag).
-    const metaDocs = candidatePaths.map((p) => ({
-      id: p,
-      text: p.replace(/[/_-]/g, " ").replace(/\.md$/, ""),
-    }));
+    const metaDocs = candidatePaths.map((p) => ({ id: p, text: pathToText(p) }));
     const metaHits = rankDocs(parsed.data.query, metaDocs);
     const shortlistCap = parsed.data.limit * 2;
     const shortlist: string[] = [];
@@ -237,7 +249,9 @@ async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
 
     const results = finalRanked.map((r) => {
       const body = bodyByPath.get(r.id) ?? "";
-      const parsedPage = body ? parseFrontmatter(body, { pathHint: r.id }) : null;
+      // Defensive against malformed frontmatter delimiters that gray-matter
+      // would otherwise leak into the snippet.
+      const parsedPage = body ? parseFrontmatter(redactBody(body), { pathHint: r.id }) : null;
       return {
         path: r.id,
         title: parsedPage?.title ?? r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id,
@@ -257,7 +271,7 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
-    const knownPaths = new Set(snap.allPaths);
+    const knownPaths = knownPathsOf(snap);
     const denylist = sensitiveFrontmatterKeys(ctx.env);
     const out = await Promise.all(
       parsed.data.paths.map(async (p) => {
@@ -279,23 +293,44 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
   }
 }
 
+const LIST_DEFAULT_LIMIT = 200;
+
 const listSchema = z.object({
   domain: z.string().optional(),
   type: z.string().optional(),
   tag: z.string().optional(),
   entity: z.string().optional(),
   concept: z.string().optional(),
+  limit: z.number().optional().default(LIST_DEFAULT_LIMIT),
+  offset: z.number().optional().default(0),
 });
+
+type ListFilters = { tag?: string; entity?: string; concept?: string };
+
+const FRONTMATTER_FILTER_KEYS: Array<{ field: keyof ListFilters; fmKey: string }> = [
+  { field: "tag", fmKey: "tags" },
+  { field: "entity", fmKey: "entities" },
+  { field: "concept", fmKey: "concepts" },
+];
+
+function matchesFilters(fm: Record<string, unknown>, filters: ListFilters): boolean {
+  for (const { field, fmKey } of FRONTMATTER_FILTER_KEYS) {
+    const needle = filters[field];
+    if (needle && !arrayIncludesIgnoreCase(toStringArray(fm[fmKey]), needle)) return false;
+  }
+  return true;
+}
+
 async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = listSchema.safeParse(raw);
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
-    const items: Array<{ path: string; title: string; type: string; domain: string }> = [];
+    const items: WikiListResult["items"] = [];
     for (const [name, dom] of snap.domains) {
-      if (parsed.data.domain && parsed.data.domain !== name) continue;
+      if (!isAllDomain(parsed.data.domain) && !eqIgnoreCase(parsed.data.domain!, name)) continue;
       for (const [t, paths] of dom.wikiTypes) {
-        if (parsed.data.type && parsed.data.type !== t) continue;
+        if (parsed.data.type && !eqIgnoreCase(parsed.data.type, t)) continue;
         for (const p of paths) {
           const title = (p.split("/").pop() ?? p).replace(/\.md$/, "");
           items.push({ path: p, title, type: t, domain: name });
@@ -303,43 +338,44 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
       }
     }
 
-    const needsFrontmatter = !!(parsed.data.tag || parsed.data.entity || parsed.data.concept);
-    if (!needsFrontmatter) {
-      return { content: [{ type: "text", text: JSON.stringify(items) }] };
+    const filters: ListFilters = {
+      tag: parsed.data.tag,
+      entity: parsed.data.entity,
+      concept: parsed.data.concept,
+    };
+    const needsFrontmatter = !!(filters.tag || filters.entity || filters.concept);
+    let result = items;
+    if (needsFrontmatter) {
+      // Body fetches are bounded by the structural pre-filter (domain/type)
+      // above; LRU dedupes across calls.
+      const fmByPath = new Map<string, Record<string, unknown>>();
+      await Promise.all(
+        items.map(async (it) => {
+          try {
+            const body = await ctx.github.fetchBody(snap.sha, it.path);
+            fmByPath.set(it.path, parseFrontmatter(body, { pathHint: it.path }).data);
+          } catch {
+            fmByPath.set(it.path, {});
+          }
+        }),
+      );
+      result = items.filter((it) => matchesFilters(fmByPath.get(it.path) ?? {}, filters));
     }
 
-    // Lazy frontmatter index — body cache amortizes repeat calls.
-    const fmByPath = new Map<string, Record<string, unknown>>();
-    await Promise.all(
-      items.map(async (it) => {
-        try {
-          const body = await ctx.github.fetchBody(snap.sha, it.path);
-          fmByPath.set(it.path, parseFrontmatter(body, { pathHint: it.path }).data);
-        } catch {
-          fmByPath.set(it.path, {});
-        }
-      }),
-    );
-
-    const filtered = items.filter((it) => {
-      const fm = fmByPath.get(it.path) ?? {};
-      if (parsed.data.tag && !asStringArray(fm.tags).includes(parsed.data.tag)) return false;
-      if (parsed.data.entity && !asStringArray(fm.entities).includes(parsed.data.entity))
-        return false;
-      if (parsed.data.concept && !asStringArray(fm.concepts).includes(parsed.data.concept))
-        return false;
-      return true;
-    });
-
-    return { content: [{ type: "text", text: JSON.stringify(filtered) }] };
+    const offset = Math.max(0, parsed.data.offset);
+    const limit = Math.max(1, parsed.data.limit);
+    const paged = result.slice(offset, offset + limit);
+    const payload: WikiListResult = {
+      items: paged,
+      total: result.length,
+      offset,
+      limit,
+      truncated: result.length > offset + limit,
+    };
+    return { content: [{ type: "text", text: JSON.stringify(payload) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === "string");
 }
 
 const uploadSchema = z.object({
