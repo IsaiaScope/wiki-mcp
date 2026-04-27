@@ -25,15 +25,26 @@ export default {
     }
 
     // OAuth discovery probes from MCP clients (RFC 9728 / MCP 2025-06-18).
-    // We do not run an OAuth server — bearer-only auth. Return a JSON 404
-    // so SDKs can parse it and fall back to the static Authorization header
-    // configured by the client.
-    if (
-      url.pathname === "/.well-known/oauth-protected-resource" ||
-      url.pathname === "/.well-known/oauth-authorization-server"
-    ) {
+    // We do not run an OAuth server — bearer-only auth. Return a valid
+    // RFC 9728 protected-resource metadata document with no authorization
+    // servers and bearer-via-header advertised. Some MCP clients (e.g.
+    // Claude Code) do an upfront probe and refuse to connect when this
+    // endpoint 404s; serving the spec-compliant metadata satisfies them
+    // without requiring a real OAuth flow.
+    if (url.pathname === "/.well-known/oauth-protected-resource") {
+      const mcpUrl = `${url.origin}/mcp`;
+      return Response.json({
+        resource: mcpUrl,
+        bearer_methods_supported: ["header"],
+        resource_name: env.WIKI_SERVER_NAME,
+      });
+    }
+    if (url.pathname === "/.well-known/oauth-authorization-server") {
+      // No OAuth authorization server. Return 404 (RFC 8414) — caller falls
+      // back gracefully when this is missing because we already advertised
+      // bearer-only via the protected-resource metadata above.
       return Response.json(
-        { error: "not_found", reason: "wiki-mcp uses static bearer auth, not OAuth" },
+        { error: "not_found", reason: "wiki-mcp uses static bearer auth, no OAuth AS" },
         { status: 404 },
       );
     }
@@ -43,7 +54,7 @@ export default {
     }
 
     if (!checkBearer(request, { primary: env.MCP_BEARER, next: env.MCP_BEARER_NEXT })) {
-      return unauthorized();
+      return unauthorized(`${url.origin}/.well-known/oauth-protected-resource`);
     }
 
     const deps = getDeps(env);
