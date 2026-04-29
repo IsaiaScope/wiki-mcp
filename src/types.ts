@@ -28,19 +28,30 @@ export type PageMeta = {
 export type Hit = {
   path: string;
   score: number;
-  reason: string;
   body: string;
   truncated: boolean;
-  links_expanded: string[];
+  viaParent?: string; // present only on expansion hits when expand_links is true
 };
 
 export type Bundle = {
-  schema: string;
-  indexes: Record<string, string>;
-  recent_log: string[];
   hits: Hit[];
   citation_instructions: string;
 };
+
+export type SearchRow = { p: string; t: string; sn?: string; s: number };
+
+export type ListRow = { p: string; t: string };
+export type ListGrouped = {
+  g: Record<string, Record<string, ListRow[]>>;
+  tot: number;
+  off: number;
+  lim: number;
+  tr: boolean;
+};
+
+export type FetchRow =
+  | { p: string; c: string; fm: Record<string, unknown> }
+  | { p: string; err: string };
 
 export type WikiListItem = {
   path: string;
