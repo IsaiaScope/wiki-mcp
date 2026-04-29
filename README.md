@@ -20,14 +20,24 @@ Model Context Protocol server that exposes an LLM-wiki vault (the [Karpathy patt
 
 Companion to [`wikionfire`](https://github.com/IsaiaScope/wikionfire) but agnostic — it works with any wiki shaped like the Karpathy pattern.
 
+## ⚠️ 1.0.0 — Breaking changes
+
+- `wiki_context` now returns Markdown text. Schema, indexes, and the recent log are no longer in the response — fetch them via the existing `wiki://schema`, `wiki://index/all`, `wiki://log/recent` resources.
+- `wiki_context` input: `include_log` removed; `expand_links` added (default `false` — wikilink expansion is now opt-in).
+- `wiki_search`, `wiki_list`, `wiki_fetch` use short JSON keys (`p`, `t`, `s`, `sn`, `c`, `fm`, `err`). `wiki_list` is now grouped by domain → type under `g`.
+- Per-domain overview lines (`wiki://overview/<domain>`) are bare paths instead of `[[path]] — Title`.
+- `WIKI_PRIME_VOCAB=full` instructions cap reduced from 50 to 20 trigger titles; trigger vocabulary no longer appears in tool descriptions in any mode.
+
+Migration: callers parsing JSON from `wiki_context` must switch to text consumption. Callers reading `items` / `total` / `frontmatter` / `error` / `path` / `title` / `score` / `snippet` keys from tabular tools must rewrite to the short keys above. Schema/indexes/log are still available — just from MCP resources rather than embedded in `wiki_context`.
+
 ## 🛠️ Six MCP tools
 
 | | Tool | Purpose | Mode |
 |-|------|---------|------|
-| 🎁 | **`wiki_context(question, domain?, budget_tokens?, include_log?)`** | one-shot knowledge bundle (schema + indexes + log tail + ranked hits + 1-hop link expansion). Hits include `truncated: boolean` when bodies are clipped to fit budget. `include_log=false` suppresses activity log for privacy. | read |
-| 🔍 | **`wiki_search(query, domain?, limit?)`** | two-stage ranked keyword search: path-token shortlist + body/frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Stage 2 fetches up to `limit*2` bodies. | read |
-| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20). Paths must exist in current snapshot. Unknown paths return per-path `error` field (partial success). `SENSITIVE_FRONTMATTER_KEYS` env strips listed keys from output. | read |
-| 🗂️ | **`wiki_list(domain?, type?, tag?, entity?, concept?, limit?, offset?)`** | structured directory listing with optional metadata filters (case-insensitive). Returns `{items, total, offset, limit, truncated}`. Default limit 200, max 1000. | read |
+| 🎁 | **`wiki_context(question, domain?, budget_tokens?, expand_links?)`** | ranked hits + 1-hop link expansion (opt-in via `expand_links: true`). Returns Markdown text — schema, indexes, and recent log are no longer in the response; fetch them via `wiki://schema`, `wiki://index/all`, `wiki://log/recent` resources. Hits include `truncated: boolean` when bodies are clipped to fit `budget_tokens`. | read |
+| 🔍 | **`wiki_search(query, domain?, limit?)`** | two-stage ranked keyword search: path-token shortlist + body/frontmatter re-rank (title, aliases, tags, entities, concepts, headings). Stage 2 fetches up to `limit*2` bodies. Output is terse JSON: `{p,t,sn?,s}` per row (path, title, snippet, score). | read |
+| 📄 | **`wiki_fetch(paths[])`** | batch read pages by exact path (max 20). Paths must exist in current snapshot. Unknown paths return per-path `err` field (partial success). `SENSITIVE_FRONTMATTER_KEYS` env strips listed keys from output. Output is terse JSON: `{p,c,fm}` for success rows, `{p,err}` for per-path failures. | read |
+| 🗂️ | **`wiki_list(domain?, type?, tag?, entity?, concept?, limit?, offset?)`** | structured directory listing with optional metadata filters (case-insensitive). Returns `{g, tot, off, lim, tr}` where `g` is `domain → type → [{p,t}]`. Default limit 200, max 1000. | read |
 | 🧱 | **`wiki_read_raw(path)`** | read a binary or text file under `{domain}/raw/{subpath}` as base64. Path must be in snapshot and live under `raw/`. | read |
 | ⬆️ | **`wiki_upload(domain, subpath, content_base64, message?)`** | upload any file (PDF, image, text, binary) under `{domain}/raw/{subpath}` — 25 MB cap, requires `contents:write` | **write** |
 
@@ -188,7 +198,7 @@ On every `initialize`, the server emits a dynamic `instructions` field computed 
 | | Mode | Behavior |
 |-|------|----------|
 | 🛡️ | `structural` (default) | per-domain page counts and type breakdown — no titles in passive surfaces |
-| 🔥 | `full` | titles injected into instructions + tool descriptions, capped at 50/30 |
+| 🔥 | `full` | titles injected into instructions, capped at 20; trigger vocabulary no longer appears in tool descriptions |
 | 🔇 | `off` | minimal greeting only, no enumeration |
 
 Two overview resources are always exposed:
@@ -205,25 +215,25 @@ Privacy mode (`WIKI_PRIME_VOCAB`) controls **priming surfaces** — passive cont
 | Surface | `structural` (default) | `full` | `off` |
 |---------|-----------------------|--------|-------|
 | `serverInfo.instructions` | domain names + counts | + 50 prettified titles | minimal one-liner |
-| Tool descriptions | static + domain list + when-to-use | + 30 titles in `wiki_context` | static |
+| Tool descriptions | static + domain list + when-to-use | static (trigger vocab no longer injected) | static |
 | `wiki://overview` | domain names + counts | + per-domain title list | suppressed |
 | `wiki://overview/{d}` | full per-domain titles | full | suppressed |
 | Tool returns (hits, snippets, log, frontmatter) | **always full body** | full | full |
 
-To strip sensitive frontmatter keys at the tool layer regardless of vocab mode, set `SENSITIVE_FRONTMATTER_KEYS`. To suppress activity-log inclusion in `wiki_context`, pass `include_log=false`.
+To strip sensitive frontmatter keys at the tool layer regardless of vocab mode, set `SENSITIVE_FRONTMATTER_KEYS`. Activity-log inclusion in `wiki_context` has been removed — use the `wiki://log/recent` resource instead.
 
 ## 🧪 Development
 
 ```bash
 pnpm dev                   # wrangler dev, local server on :8787
-pnpm test                  # vitest (209 tests)
+pnpm test                  # vitest (219 tests)
 pnpm test:coverage         # with coverage report
 pnpm typecheck             # tsc --noEmit
 pnpm lint                  # ultracite check (biome under the hood)
 pnpm fix                   # ultracite fix
 ```
 
-**209 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
+**219 tests** across unit, integration, and contract layers. Mocked GitHub fetch reads from `test/fixtures/vault/` — a synthetic mini-vault safe to be public.
 
 ## 🛠️ Tooling
 
