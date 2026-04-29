@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+import {
+  renderContextMarkdown,
+  renderFetchJSON,
+  renderListJSON,
+  renderSearchJSON,
+} from "../../src/mcp/serialize";
+import type { Bundle, FetchRow, SearchRow } from "../../src/types";
+
+describe("renderContextMarkdown", () => {
+  it("emits header, hits with metadata line, and trailing cite line", () => {
+    const bundle: Bundle = {
+      hits: [
+        {
+          path: "personal/wiki/entities/Foo.md",
+          score: 0.83,
+          body: "# Foo\n\nBody text.",
+          truncated: false,
+        },
+      ],
+      citation_instructions: "Cite with [[path]].",
+    };
+    const out = renderContextMarkdown(bundle);
+    expect(out.startsWith("# wiki_context\n")).toBe(true);
+    expect(out).toContain("[hit] personal/wiki/entities/Foo.md  score=0.83  truncated=false");
+    expect(out).toContain("# Foo\n\nBody text.");
+    expect(out).toContain("[cite] Cite with [[path]].");
+  });
+
+  it("emits viaParent on expansion hits", () => {
+    const bundle: Bundle = {
+      hits: [
+        { path: "a.md", score: 0.7, body: "A", truncated: false },
+        {
+          path: "b.md",
+          score: 0,
+          body: "B",
+          truncated: true,
+          viaParent: "a.md",
+        },
+      ],
+      citation_instructions: "ci",
+    };
+    const out = renderContextMarkdown(bundle);
+    expect(out).toContain("[hit] b.md  score=0.00  truncated=true  via=a.md");
+  });
+
+  it("returns a header + cite line even when hits are empty", () => {
+    const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
+    expect(out).toContain("# wiki_context");
+    expect(out).toContain("[cite] ci");
+  });
+
+  it("emits [ctx] pointer to schema/indexes/log resources", () => {
+    const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
+    expect(out).toContain(
+      "[ctx] schema/indexes/log at wiki://schema, wiki://index/all, wiki://log/recent",
+    );
+  });
+});
+
+describe("renderListJSON", () => {
+  it("emits grouped domain→type structure with terse meta keys", () => {
+    const grouped = {
+      personal: { concepts: [{ p: "personal/wiki/concepts/foo.md", t: "Foo" }] },
+    };
+    const out = renderListJSON({ g: grouped, tot: 1, off: 0, lim: 200, tr: false });
+    expect(JSON.parse(out)).toEqual({
+      g: { personal: { concepts: [{ p: "personal/wiki/concepts/foo.md", t: "Foo" }] } },
+      tot: 1,
+      off: 0,
+      lim: 200,
+      tr: false,
+    });
+  });
+});
+
+describe("renderSearchJSON", () => {
+  it("emits short keys, omits empty snippet, rounds score to 2dp", () => {
+    const rows: SearchRow[] = [
+      { p: "a.md", t: "A", sn: "snip", s: 0.834 },
+      { p: "b.md", t: "B", s: 0.5 },
+    ];
+    const out = renderSearchJSON(rows);
+    const parsed = JSON.parse(out);
+    expect(parsed).toEqual([
+      { p: "a.md", t: "A", sn: "snip", s: 0.83 },
+      { p: "b.md", t: "B", s: 0.5 },
+    ]);
+  });
+});
+
+describe("renderFetchJSON", () => {
+  it("emits short keys for success and error rows", () => {
+    const rows: FetchRow[] = [
+      { p: "a.md", c: "body", fm: { title: "A" } },
+      { p: "x", err: "path not in snapshot" },
+    ];
+    expect(JSON.parse(renderFetchJSON(rows))).toEqual([
+      { p: "a.md", c: "body", fm: { title: "A" } },
+      { p: "x", err: "path not in snapshot" },
+    ]);
+  });
+});

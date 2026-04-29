@@ -40,7 +40,7 @@ describe("MCP contract", () => {
     await client.close();
   });
 
-  it("calling wiki_context over real JSON-RPC returns a bundle", async () => {
+  it("calling wiki_context over real JSON-RPC returns markdown context", async () => {
     const handle = await createServer(makeEnv());
     const [clientT, serverT] = InMemoryTransport.createLinkedPair();
     await handle.raw.connect(serverT);
@@ -50,8 +50,8 @@ describe("MCP contract", () => {
 
     const res = await client.callTool({ name: "wiki_context", arguments: { question: "Foo" } });
     const content = res.content as Array<{ type: string; text: string }>;
-    const bundle = JSON.parse(content[0].text);
-    expect(bundle).toHaveProperty("hits");
+    expect(typeof content[0].text).toBe("string");
+    expect(content[0].text.startsWith("# wiki_context")).toBe(true);
     await client.close();
   });
 
