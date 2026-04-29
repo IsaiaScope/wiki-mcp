@@ -15,6 +15,7 @@ import {
   toStringArray,
 } from "../util";
 import { parseFrontmatter } from "../wiki";
+import { renderContextMarkdown } from "./serialize";
 
 export type ToolContext = {
   env: Env;
@@ -40,7 +41,7 @@ export function registerTools(server: McpServer, ctx: ToolContext) {
         question: z.string(),
         domain: z.string().optional(),
         budget_tokens: z.number().int().positive().max(12000).optional(),
-        include_log: z.boolean().optional(),
+        expand_links: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -140,15 +141,15 @@ const contextSchema = z.object({
   question: z.string(),
   domain: z.string().optional().default("all"),
   budget_tokens: z.number().optional().default(6000),
-  include_log: z.boolean().optional().default(true),
+  expand_links: z.boolean().optional().default(false),
 });
 async function wikiContextHandler(raw: unknown, ctx: ToolContext): Promise<ToolResult> {
   const parsed = contextSchema.safeParse(raw);
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
-    const bundle = await buildContext(parsed.data, snap, ctx.github, ctx.env);
-    return { content: [{ type: "text", text: JSON.stringify(bundle) }] };
+    const bundle = await buildContext(parsed.data, snap, ctx.github);
+    return { content: [{ type: "text", text: renderContextMarkdown(bundle) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }

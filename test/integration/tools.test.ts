@@ -25,12 +25,15 @@ describe("MCP tools", () => {
     ]);
   });
 
-  it("wiki_context returns JSON bundle text", async () => {
+  it("wiki_context returns markdown text", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_context", { question: "Foo" });
     expect(result.content[0].type).toBe("text");
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.hits.length).toBeGreaterThan(0);
+    const text = result.content[0].text;
+    expect(text.startsWith("# wiki_context")).toBe(true);
+    expect(text).toContain("[hit] ");
+    expect(text).toContain("[cite] ");
+    expect(() => JSON.parse(text)).toThrow();
   });
 
   it("wiki_search returns ranked list", async () => {
