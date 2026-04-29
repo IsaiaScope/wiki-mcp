@@ -149,10 +149,11 @@ Pagination still applies after grouping is built (deterministic ordering: domain
 
 ### Prime / Instructions / Tool Descriptions
 
-- Default `WIKI_PRIME_VOCAB`: `full` → `structural` (counts only, no titles).
-- Trigger vocabulary removed from the `wiki_context` tool description — kept only in `instructions` (when mode is `full`).
-- Per-domain overview lines change from `- [[path]] — Pretty Title` to `- path`.
-- Instructions trigger-vocab cap: 50 → 20 titles.
+Current code default (`parseVocabMode`) is already `structural`, and `wrangler.toml` deploys `WIKI_PRIME_VOCAB="structural"` to production. Under that default, trigger vocabulary is already absent from tool descriptions and instructions. The remaining real savings:
+
+- **Per-domain overview lines** change from `- [[path]] — Pretty Title` to `- path`. Applies in both `structural` and `full` modes (the `buildOverviewByDomain` path is mode-independent for these lines). Caller can prettify if needed.
+- **Trigger-vocab caps in `full` mode**: instructions 50 → 20 titles, and trigger vocabulary removed from the `wiki_context` tool description. These only fire when the user explicitly sets `WIKI_PRIME_VOCAB=full`. Kept in scope to prevent regressions for `full`-mode users on large vaults.
+- **No default-mode change.** `structural` stays the default.
 
 ### Unchanged
 
@@ -169,11 +170,12 @@ Pagination still applies after grouping is built (deterministic ordering: domain
 | `src/search/context.ts` | `buildContext` returns trimmed `Bundle` (no schema/indexes/log); expansions conditional on `expand_links`; strip frontmatter from hit body before emission. |
 | `src/types.ts` | New `Bundle` shape (drops `schema`, `indexes`, `recent_log`, `citation_instructions`); new tabular row types `SearchRow`, `ListRow`, `FetchRow`, `ListGrouped`; `Hit` retains `path`/`score`/`body`/`truncated`, drops `reason` and `links_expanded`. Expansions are represented as additional `Hit` entries with a new optional `viaParent?: string` field. |
 | `src/wiki/frontmatter.ts` | Export `stripFrontmatterBlock(body)` — delimiter-only strip, no parse, used in hit body emission. |
-| `src/prime/prime.ts` | Default vocab mode `structural`; drop trigger vocab from `wiki_context` tool description; instructions cap 50 → 20; per-domain overview line format change. |
-| `src/env.ts` | `parseVocabMode` default → `structural`. |
+| `src/prime/prime.ts` | Drop trigger vocab from `wiki_context` tool description in `full` mode; instructions cap 50 → 20 in `full` mode; per-domain overview line format change in both modes. No default-mode change. |
+| `src/env.ts` | Unchanged. `parseVocabMode` already defaults to `structural`. |
 | `src/mcp/resources.ts` | Unchanged. |
-| `package.json` | `version` → `1.0.0`. |
-| `README.md` | Document new shapes; add breaking change notice. |
+| `package.json` | `version` → `1.0.0`. The MCP server's advertised version is auto-derived from `pkg.version` in `src/server.ts:86`, so no separate edit there. |
+| `wrangler.toml` | Unchanged. `WIKI_PRIME_VOCAB="structural"` already deployed. |
+| `README.md` | Document new shapes; add breaking change notice and 1.0.0 migration guide. |
 | `tests/**` | Update fixtures for new shapes; add answerability and token-budget regression tests. |
 
 ## Data Flow
@@ -230,4 +232,4 @@ wiki_fetch  → handler builds rows → renderFetchJSON(rows) → string
 
 - **Caller LLM adapts to short keys?** Tool descriptions document the new keys. Risk: a caller LLM sees terse JSON and asks the user to interpret. Mitigation: tool description includes a one-line legend (`p=path, t=title, sn=snippet, s=score`).
 - **Resources discoverability.** Removing schema/indexes/log from `wiki_context` assumes callers can list/read MCP resources. All major MCP clients support this. Worst case: the caller LLM doesn't try resources for ambient context. Mitigation: `wiki_context` Markdown output ends with a one-line pointer (`[ctx] schema/indexes/log available at wiki://schema, wiki://index/all, wiki://log/recent`).
-- **Vocab default change.** Existing deployments relying on default `full` lose trigger fanout silently on upgrade. Mitigation: `1.0.0` release note flags the default change; users restore via `WIKI_PRIME_VOCAB=full`.
+- **`full`-mode users on large vaults.** Removing trigger vocab from the `wiki_context` tool description and capping instructions vocab to 20 reduces fanout signal for callers explicitly using `WIKI_PRIME_VOCAB=full`. Mitigation: `1.0.0` release note documents the new caps; the `instructions` block still lists 20 titles, and the full per-domain inventory remains available via `wiki://overview/{domain}` resources.
