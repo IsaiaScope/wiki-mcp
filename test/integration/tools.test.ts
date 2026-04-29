@@ -70,10 +70,11 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed[0].path).toBe("personal/wiki/entities/Foo.md");
-    expect(parsed[0].content).toContain("Foo");
-    expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
+    const rows = JSON.parse(result.content[0].text);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toHaveProperty("p");
+    expect(rows[0]).toHaveProperty("c");
+    expect(rows[0]).toHaveProperty("fm");
   });
 
   it("wiki_list returns discovered types in paginated envelope", async () => {
@@ -169,13 +170,13 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text) as Array<{
-      path: string;
-      frontmatter: Record<string, unknown>;
+    const rows = JSON.parse(result.content[0].text) as Array<{
+      p: string;
+      fm: Record<string, unknown>;
     }>;
-    expect(parsed[0].frontmatter).not.toHaveProperty("kind");
-    expect(parsed[0].frontmatter).not.toHaveProperty("first_seen");
-    expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
+    expect(rows[0].fm).not.toHaveProperty("kind");
+    expect(rows[0].fm).not.toHaveProperty("first_seen");
+    expect(rows[0].fm).toHaveProperty("type", "entity");
   });
 
   it("wiki_fetch rejects paths not in snapshot per-path", async () => {
@@ -183,16 +184,18 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["secret/file.md", "personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text) as Array<{
-      path: string;
-      content: string;
-      error?: string;
+    const rows = JSON.parse(result.content[0].text) as Array<{
+      p: string;
+      c?: string;
+      fm?: Record<string, unknown>;
+      err?: string;
     }>;
-    const known = parsed.find((p) => p.path === "personal/wiki/entities/Foo.md");
-    const unknown = parsed.find((p) => p.path === "secret/file.md");
-    expect(known?.content).not.toBe("");
-    expect(unknown?.content).toBe("");
-    expect(unknown?.error).toMatch(/not in snapshot/);
+    const known = rows.find((r) => r.p === "personal/wiki/entities/Foo.md");
+    const unknown = rows.find((r) => r.p === "secret/file.md");
+    expect(known?.c).not.toBe("");
+    expect(unknown?.err).toMatch(/not in snapshot/);
+    expect(unknown).not.toHaveProperty("c");
+    expect(unknown).not.toHaveProperty("fm");
   });
 
   it("wiki_upload rejects unknown domain", async () => {

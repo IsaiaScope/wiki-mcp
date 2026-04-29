@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { renderContextMarkdown, renderListJSON, renderSearchJSON } from "../../src/mcp/serialize";
-import type { Bundle, SearchRow } from "../../src/types";
+import {
+  renderContextMarkdown,
+  renderFetchJSON,
+  renderListJSON,
+  renderSearchJSON,
+} from "../../src/mcp/serialize";
+import type { Bundle, FetchRow, SearchRow } from "../../src/types";
 
 describe("renderContextMarkdown", () => {
   it("emits header, hits with metadata line, and trailing cite line", () => {
@@ -74,6 +79,19 @@ describe("renderSearchJSON", () => {
     expect(parsed).toEqual([
       { p: "a.md", t: "A", sn: "snip", s: 0.83 },
       { p: "b.md", t: "B", s: 0.5 },
+    ]);
+  });
+});
+
+describe("renderFetchJSON", () => {
+  it("emits short keys for success and error rows", () => {
+    const rows: FetchRow[] = [
+      { p: "a.md", c: "body", fm: { title: "A" } },
+      { p: "x", err: "path not in snapshot" },
+    ];
+    expect(JSON.parse(renderFetchJSON(rows))).toEqual([
+      { p: "a.md", c: "body", fm: { title: "A" } },
+      { p: "x", err: "path not in snapshot" },
     ]);
   });
 });

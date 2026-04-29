@@ -5,7 +5,7 @@ import type { GithubClient } from "../github";
 import { readRawFile } from "../raw";
 import { buildContext, pageRankDoc, rankDocs } from "../search";
 import { knownPathsOf } from "../snapshot-cache";
-import type { ListGrouped, PrimeBundle, SearchRow, Snapshot } from "../types";
+import type { FetchRow, ListGrouped, PrimeBundle, SearchRow, Snapshot } from "../types";
 import { uploadFile } from "../upload";
 import {
   arrayIncludesIgnoreCase,
@@ -15,7 +15,12 @@ import {
   toStringArray,
 } from "../util";
 import { parseFrontmatter } from "../wiki";
-import { renderContextMarkdown, renderListJSON, renderSearchJSON } from "./serialize";
+import {
+  renderContextMarkdown,
+  renderFetchJSON,
+  renderListJSON,
+  renderSearchJSON,
+} from "./serialize";
 
 export type ToolContext = {
   env: Env;
@@ -271,21 +276,19 @@ async function wikiFetchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRes
     const snap = await ctx.getSnapshot();
     const knownPaths = knownPathsOf(snap);
     const denylist = sensitiveFrontmatterKeys(ctx.env);
-    const out = await Promise.all(
-      parsed.data.paths.map(async (p) => {
-        if (!knownPaths.has(p)) {
-          return { path: p, content: "", frontmatter: {}, error: "path not in snapshot" };
-        }
+    const out: FetchRow[] = await Promise.all(
+      parsed.data.paths.map(async (p): Promise<FetchRow> => {
+        if (!knownPaths.has(p)) return { p, err: "path not in snapshot" };
         try {
           const body = await ctx.github.fetchBody(snap.sha, p);
           const fm = parseFrontmatter(body, { pathHint: p });
-          return { path: p, content: body, frontmatter: filterFrontmatter(fm.data, denylist) };
+          return { p, c: body, fm: filterFrontmatter(fm.data, denylist) };
         } catch (e) {
-          return { path: p, content: "", frontmatter: {}, error: (e as Error).message };
+          return { p, err: (e as Error).message };
         }
       }),
     );
-    return { content: [{ type: "text", text: JSON.stringify(out) }] };
+    return { content: [{ type: "text", text: renderFetchJSON(out) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
