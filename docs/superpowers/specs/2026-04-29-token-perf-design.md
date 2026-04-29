@@ -169,7 +169,7 @@ Current code default (`parseVocabMode`) is already `structural`, and `wrangler.t
 | `src/mcp/serialize.ts` | NEW. Centralized renderers: `renderContextMarkdown`, `renderSearchJSON`, `renderListJSON`, `renderFetchJSON`. |
 | `src/search/context.ts` | `buildContext` returns trimmed `Bundle` (no schema/indexes/log); expansions conditional on `expand_links`; strip frontmatter from hit body before emission. |
 | `src/types.ts` | New `Bundle` shape (drops `schema`, `indexes`, `recent_log`, `citation_instructions`); new tabular row types `SearchRow`, `ListRow`, `FetchRow`, `ListGrouped`; `Hit` retains `path`/`score`/`body`/`truncated`, drops `reason` and `links_expanded`. Expansions are represented as additional `Hit` entries with a new optional `viaParent?: string` field. |
-| `src/wiki/frontmatter.ts` | Export `stripFrontmatterBlock(body)` — delimiter-only strip, no parse, used in hit body emission. |
+| `src/env.ts` | Existing `redactBody` (uses `FRONTMATTER_BLOCK_RE`) already strips the leading YAML frontmatter block and is used by `buildContext` when emitting hit bodies. No new export needed. |
 | `src/prime/prime.ts` | Drop trigger vocab from `wiki_context` tool description in `full` mode; instructions cap 50 → 20 in `full` mode; per-domain overview line format change in both modes. No default-mode change. |
 | `src/env.ts` | Unchanged. `parseVocabMode` already defaults to `structural`. |
 | `src/mcp/resources.ts` | Unchanged. |

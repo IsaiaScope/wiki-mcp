@@ -28,6 +28,22 @@ const PROBES: Probe[] = [
     expectedTop: ["personal/wiki/concepts/bar-baz.md"],
   },
   { question: "Foo", domain: "all", expectedTop: ["personal/wiki/entities/Foo.md"] },
+  // Additional probes: gives work ≥2, covers sources type, alternate Foo wording
+  {
+    question: "Qux work entity",
+    domain: "work",
+    expectedTop: ["work/wiki/entities/Qux.md"],
+  },
+  {
+    question: "sample source",
+    domain: "personal",
+    expectedTop: ["personal/wiki/sources/2026-01-01-sample.md"],
+  },
+  {
+    question: "Foo entity",
+    domain: "personal",
+    expectedTop: ["personal/wiki/entities/Foo.md"],
+  },
 ];
 
 describe("answerability regression — top-3 retrieval", () => {

@@ -24,7 +24,7 @@ describe("renderContextMarkdown", () => {
     expect(out.startsWith("# wiki_context\n")).toBe(true);
     expect(out).toContain("[hit] personal/wiki/entities/Foo.md  score=0.83  truncated=false");
     expect(out).toContain("# Foo\n\nBody text.");
-    expect(out.trimEnd().endsWith("[cite] Cite with [[path]].")).toBe(true);
+    expect(out).toContain("[cite] Cite with [[path]].");
   });
 
   it("emits viaParent on expansion hits", () => {
@@ -49,6 +49,13 @@ describe("renderContextMarkdown", () => {
     const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
     expect(out).toContain("# wiki_context");
     expect(out).toContain("[cite] ci");
+  });
+
+  it("emits [ctx] pointer to schema/indexes/log resources", () => {
+    const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
+    expect(out).toContain(
+      "[ctx] schema/indexes/log at wiki://schema, wiki://index/all, wiki://log/recent",
+    );
   });
 });
 

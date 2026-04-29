@@ -10,6 +10,7 @@ export function renderContextMarkdown(bundle: Bundle): string {
     parts.push("");
   }
   parts.push(`[cite] ${bundle.citation_instructions}`);
+  parts.push(`[ctx] schema/indexes/log at wiki://schema, wiki://index/all, wiki://log/recent`);
   return parts.join("\n");
 }
 

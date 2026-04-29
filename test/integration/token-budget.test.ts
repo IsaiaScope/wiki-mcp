@@ -11,20 +11,17 @@ import { makeEnv, makeFixtureFetch } from "../helpers";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_ROOT = resolve(__dirname, "../fixtures/vault");
 
-// Baseline captured before token-perf pass: pre-refactor representative
-// emission (schema + indexes + log + JSON envelope + frontmatter + expansions
-// always-on) totalled ~4200 estimated tokens for this query against the
-// fixture vault. Setting the assertion floor at 35% reduction → 2730 tokens
-// is the regression guard.
-const BASELINE_TOKENS = 4200;
-const REQUIRED_REDUCTION = 0.35;
+// Tight ceiling: actual emission for this fixture query is ~58 tokens.
+// Allow 2x headroom for fixture additions, but no more — anything larger
+// is a regression worth investigating.
+const TOKEN_CEILING = 120;
 
 describe("token-budget regression", () => {
   beforeEach(() => {
     globalThis.fetch = makeFixtureFetch(FIXTURES_ROOT) as unknown as typeof fetch;
   });
 
-  it("wiki_context emission is at least 35% smaller than the v0.16 baseline", async () => {
+  it("wiki_context emission stays within tight ceiling (regression guard)", async () => {
     const env = makeEnv();
     const client = new GithubClient(env);
     const snap = buildSnapshot(await client.fetchTree(), env);
@@ -35,7 +32,6 @@ describe("token-budget regression", () => {
     );
     const text = renderContextMarkdown(bundle);
     const tokens = estimateTokens(text);
-    const cap = Math.floor(BASELINE_TOKENS * (1 - REQUIRED_REDUCTION));
-    expect(tokens).toBeLessThanOrEqual(cap);
+    expect(tokens).toBeLessThanOrEqual(TOKEN_CEILING);
   });
 });

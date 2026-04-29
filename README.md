@@ -204,7 +204,7 @@ On every `initialize`, the server emits a dynamic `instructions` field computed 
 Two overview resources are always exposed:
 
 - `wiki://overview` — domain map with per-domain slice URIs
-- `wiki://overview/{domain}` — page listing for one domain, each page as a `[[path]]` link with a prettified title
+- `wiki://overview/{domain}` — page listing for one domain — bare paths, one per line
 
 See [`src/prime/`](src/prime/) for the full design.
 
@@ -214,7 +214,7 @@ Privacy mode (`WIKI_PRIME_VOCAB`) controls **priming surfaces** — passive cont
 
 | Surface | `structural` (default) | `full` | `off` |
 |---------|-----------------------|--------|-------|
-| `serverInfo.instructions` | domain names + counts | + 50 prettified titles | minimal one-liner |
+| `serverInfo.instructions` | domain names + counts | + 20 prettified titles | minimal one-liner |
 | Tool descriptions | static + domain list + when-to-use | static (trigger vocab no longer injected) | static |
 | `wiki://overview` | domain names + counts | + per-domain title list | suppressed |
 | `wiki://overview/{d}` | full per-domain titles | full | suppressed |
