@@ -1,4 +1,4 @@
-import type { Bundle } from "../types";
+import type { Bundle, SearchRow } from "../types";
 
 export function renderContextMarkdown(bundle: Bundle): string {
   const parts: string[] = ["# wiki_context", ""];
@@ -11,4 +11,13 @@ export function renderContextMarkdown(bundle: Bundle): string {
   }
   parts.push(`[cite] ${bundle.citation_instructions}`);
   return parts.join("\n");
+}
+
+export function renderSearchJSON(rows: SearchRow[]): string {
+  const out = rows.map((r) => {
+    const obj: SearchRow = { p: r.p, t: r.t, s: Math.round(r.s * 100) / 100 };
+    if (r.sn) obj.sn = r.sn;
+    return obj;
+  });
+  return JSON.stringify(out);
 }

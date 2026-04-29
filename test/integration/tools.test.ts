@@ -39,18 +39,20 @@ describe("MCP tools", () => {
   it("wiki_search returns ranked list", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_search", { query: "Foo", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed[0]).toHaveProperty("path");
-    expect(parsed[0]).toHaveProperty("score");
+    const rows = JSON.parse(result.content[0].text);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows[0]).toHaveProperty("p");
+    expect(rows[0]).toHaveProperty("t");
+    expect(rows[0]).toHaveProperty("s");
+    expect(typeof rows[0].s).toBe("number");
   });
 
   it("wiki_search re-ranks via body — finds tag/body matches absent from path", async () => {
     const server = await createServer(makeEnv());
     // "sample" exists only in frontmatter tags + body, never in path
     const result = await server.callTool("wiki_search", { query: "sample", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
-    const paths = parsed.map((p) => p.path);
+    const parsed = JSON.parse(result.content[0].text) as Array<{ p: string }>;
+    const paths = parsed.map((p) => p.p);
     expect(paths).toContain("personal/wiki/entities/Foo.md");
   });
 
@@ -58,8 +60,8 @@ describe("MCP tools", () => {
     const server = await createServer(makeEnv());
     // Foo.md frontmatter declares aliases: [Fooable]
     const result = await server.callTool("wiki_search", { query: "Fooable", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
-    const paths = parsed.map((p) => p.path);
+    const parsed = JSON.parse(result.content[0].text) as Array<{ p: string }>;
+    const paths = parsed.map((p) => p.p);
     expect(paths).toContain("personal/wiki/entities/Foo.md");
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderContextMarkdown } from "../../src/mcp/serialize";
-import type { Bundle } from "../../src/types";
+import { renderContextMarkdown, renderSearchJSON } from "../../src/mcp/serialize";
+import type { Bundle, SearchRow } from "../../src/types";
 
 describe("renderContextMarkdown", () => {
   it("emits header, hits with metadata line, and trailing cite line", () => {
@@ -44,5 +44,20 @@ describe("renderContextMarkdown", () => {
     const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
     expect(out).toContain("# wiki_context");
     expect(out).toContain("[cite] ci");
+  });
+});
+
+describe("renderSearchJSON", () => {
+  it("emits short keys, omits empty snippet, rounds score to 2dp", () => {
+    const rows: SearchRow[] = [
+      { p: "a.md", t: "A", sn: "snip", s: 0.834 },
+      { p: "b.md", t: "B", s: 0.5 },
+    ];
+    const out = renderSearchJSON(rows);
+    const parsed = JSON.parse(out);
+    expect(parsed).toEqual([
+      { p: "a.md", t: "A", sn: "snip", s: 0.83 },
+      { p: "b.md", t: "B", s: 0.5 },
+    ]);
   });
 });

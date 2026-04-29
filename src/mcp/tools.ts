@@ -5,7 +5,7 @@ import type { GithubClient } from "../github";
 import { readRawFile } from "../raw";
 import { buildContext, pageRankDoc, rankDocs } from "../search";
 import { knownPathsOf } from "../snapshot-cache";
-import type { PrimeBundle, Snapshot, WikiListResult } from "../types";
+import type { PrimeBundle, SearchRow, Snapshot, WikiListResult } from "../types";
 import { uploadFile } from "../upload";
 import {
   arrayIncludesIgnoreCase,
@@ -15,7 +15,7 @@ import {
   toStringArray,
 } from "../util";
 import { parseFrontmatter } from "../wiki";
-import { renderContextMarkdown } from "./serialize";
+import { renderContextMarkdown, renderSearchJSON } from "./serialize";
 
 export type ToolContext = {
   env: Env;
@@ -248,19 +248,16 @@ async function wikiSearchHandler(raw: unknown, ctx: ToolContext): Promise<ToolRe
     const bodyHits = rankDocs(parsed.data.query, bodyDocs);
     const finalRanked = (bodyHits.length > 0 ? bodyHits : metaHits).slice(0, parsed.data.limit);
 
-    const results = finalRanked.map((r) => {
+    const rows: SearchRow[] = finalRanked.map((r) => {
       const body = bodyByPath.get(r.id) ?? "";
-      // Defensive against malformed frontmatter delimiters that gray-matter
-      // would otherwise leak into the snippet.
       const parsedPage = body ? parseFrontmatter(redactBody(body), { pathHint: r.id }) : null;
-      return {
-        path: r.id,
-        title: parsedPage?.title ?? r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id,
-        snippet: parsedPage ? extractSnippet(parsedPage.body) : "",
-        score: r.score,
-      };
+      const t = parsedPage?.title ?? r.id.split("/").pop()?.replace(/\.md$/, "") ?? r.id;
+      const sn = parsedPage ? extractSnippet(parsedPage.body) : "";
+      const row: SearchRow = { p: r.id, t, s: r.score };
+      if (sn) row.sn = sn;
+      return row;
     });
-    return { content: [{ type: "text", text: JSON.stringify(results) }] };
+    return { content: [{ type: "text", text: renderSearchJSON(rows) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
