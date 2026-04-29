@@ -100,8 +100,7 @@ function countDomainPages(dom: Domain): number {
   return total;
 }
 
-const INSTRUCTIONS_TITLE_CAP = 50;
-const TOOL_DESC_TITLE_CAP = 30;
+const INSTRUCTIONS_TITLE_CAP = 20;
 
 function flatTriggerList(vocab: Vocab, cap: number): { included: string[]; omitted: number } {
   const all = new Set<string>();
@@ -173,7 +172,7 @@ function buildInstructions(
 }
 
 function buildToolDescriptions(
-  vocab: Vocab,
+  _vocab: Vocab,
   mode: PrimeVocabMode,
   snapshot: Snapshot,
 ): Record<ToolName, string> {
@@ -183,15 +182,7 @@ function buildToolDescriptions(
   const baseTail =
     " Read wiki://overview for the current page inventory before deciding between wiki_context, wiki_search, and wiki_fetch.";
 
-  let contextDesc = STATIC_TOOL_DESCRIPTIONS.wiki_context + baseTail;
-
-  if (mode === "full") {
-    const { included, omitted } = flatTriggerList(vocab, TOOL_DESC_TITLE_CAP);
-    if (included.length > 0) {
-      const suffix = omitted > 0 ? ` and ${omitted} more` : "";
-      contextDesc += ` Trigger vocabulary: ${included.join(", ")}${suffix}.`;
-    }
-  }
+  const contextDesc = STATIC_TOOL_DESCRIPTIONS.wiki_context + baseTail;
 
   return {
     wiki_context: appendDomainHint(contextDesc, snapshot),
@@ -259,9 +250,7 @@ function buildOverviewByDomain(snapshot: Snapshot, mode: PrimeVocabMode): Map<st
       lines.push("");
       lines.push(`## ${t} (${paths.length})`);
       for (const p of paths) {
-        const base = p.split("/").pop() ?? p;
-        const pretty = prettifyTitle(base);
-        lines.push(`- [[${p}]] — ${pretty}`);
+        lines.push(`- ${p}`);
       }
     }
     out.set(dname, lines.join("\n"));

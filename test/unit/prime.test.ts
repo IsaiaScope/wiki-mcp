@@ -174,32 +174,39 @@ describe("buildPrime — full (opt-in vocab)", () => {
     expect(p.instructions).toContain("CCNL Metalmeccanico");
   });
 
-  it("wiki_context description contains trigger vocabulary", () => {
+  it("wiki_context description does NOT contain trigger vocabulary in full mode", () => {
     const snap = makeSnapshot({ personal: { entities: ["Foo", "Bar"] } });
     const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
-    expect(p.toolDescriptions.wiki_context).toContain("Foo");
-    expect(p.toolDescriptions.wiki_context).toContain("Bar");
+    expect(p.toolDescriptions.wiki_context).not.toContain("Trigger vocabulary");
+    expect(p.toolDescriptions.wiki_context).not.toContain("Foo");
+    expect(p.toolDescriptions.wiki_context).not.toContain("Bar");
   });
 
-  it("instructions trigger list capped at 50 titles, alphabetical", () => {
-    const many = Array.from({ length: 80 }, (_, i) => `page-${String(i).padStart(3, "0")}`);
+  it("instructions trigger list capped at 20 titles, alphabetical", () => {
+    const many = Array.from({ length: 30 }, (_, i) => `page-${String(i).padStart(3, "0")}`);
     const snap = makeSnapshot({ personal: { entities: many } });
     const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
-    // alphabetical: page-000 first, page-049 last of included
+    // alphabetical: page-000 first, page-019 last of included
     expect(p.instructions).toContain("Page 000");
-    expect(p.instructions).toContain("Page 049");
-    expect(p.instructions).not.toContain("Page 050");
+    expect(p.instructions).toContain("Page 019");
+    expect(p.instructions).not.toContain("Page 020");
     expect(p.instructions).toMatch(/and \d+ more/);
   });
 
-  it("tool description trigger list capped at 30 titles", () => {
-    const many = Array.from({ length: 50 }, (_, i) => `page-${String(i).padStart(3, "0")}`);
-    const snap = makeSnapshot({ personal: { entities: many } });
-    const p = buildPrime(snap, makeEnv({ WIKI_PRIME_VOCAB: "full" }));
-    const desc = p.toolDescriptions.wiki_context;
-    expect(desc).toContain("Page 000");
-    expect(desc).toContain("Page 029");
-    expect(desc).not.toContain("Page 030");
+  it("caps trigger vocab at 20 titles in full mode instructions", () => {
+    const many = Array.from({ length: 25 }, (_, i) => `item-${String(i).padStart(3, "0")}`);
+    const snap = makeSnapshot({
+      personal: { entities: many.slice(0, 10), concepts: many.slice(10, 20) },
+      work: { entities: many.slice(20, 25) },
+    });
+    const env = makeEnv({ WIKI_PRIME_VOCAB: "full" });
+    const prime = buildPrime(snap, env);
+    const m = prime.instructions.match(/Trigger vocabulary: ([^.]+?) and (\d+) more\./);
+    expect(m).not.toBeNull();
+    if (m) {
+      const titles = m[1].split(", ");
+      expect(titles.length).toBe(20);
+    }
   });
 
   it("title collision across domains kept once in trigger list (dedupe)", () => {

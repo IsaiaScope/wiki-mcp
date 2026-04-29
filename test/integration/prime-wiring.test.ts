@@ -30,14 +30,14 @@ describe("prime wiring (structural default)", () => {
     expect(text).toContain("wiki://overview/work");
   });
 
-  it("wiki://overview/personal lists fixture titles with [[path]] links", async () => {
+  it("wiki://overview/personal lists fixture paths", async () => {
     const server = await createServer(makeEnv());
     const res = await server.readResource("wiki://overview/personal");
     const text = res.contents[0].text;
     expect(text).toContain("# personal");
     expect(text).toContain("## entities");
-    expect(text).toContain("[[personal/wiki/entities/Foo.md]]");
-    expect(text).toContain("Foo");
+    expect(text).toContain("- personal/wiki/entities/Foo.md");
+    expect(text).not.toContain("[[personal/wiki/entities/Foo.md]]");
   });
 
   it("wiki://overview/nonexistent throws helpful error listing known domains", async () => {
