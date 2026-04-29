@@ -3,8 +3,6 @@ import type { Snapshot } from "./types";
 
 export type SnapshotCache = {
   metaDocs?: Map<string, RankDoc[]>;
-  indexes?: Map<string, Record<string, string>>;
-  schema?: string;
   knownPaths?: Set<string>;
 };
 

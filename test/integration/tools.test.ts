@@ -25,29 +25,34 @@ describe("MCP tools", () => {
     ]);
   });
 
-  it("wiki_context returns JSON bundle text", async () => {
+  it("wiki_context returns markdown text", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_context", { question: "Foo" });
     expect(result.content[0].type).toBe("text");
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.hits.length).toBeGreaterThan(0);
+    const text = result.content[0].text;
+    expect(text.startsWith("# wiki_context")).toBe(true);
+    expect(text).toContain("[hit] ");
+    expect(text).toContain("[cite] ");
+    expect(() => JSON.parse(text)).toThrow();
   });
 
   it("wiki_search returns ranked list", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_search", { query: "Foo", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed[0]).toHaveProperty("path");
-    expect(parsed[0]).toHaveProperty("score");
+    const rows = JSON.parse(result.content[0].text);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows[0]).toHaveProperty("p");
+    expect(rows[0]).toHaveProperty("t");
+    expect(rows[0]).toHaveProperty("s");
+    expect(typeof rows[0].s).toBe("number");
   });
 
   it("wiki_search re-ranks via body — finds tag/body matches absent from path", async () => {
     const server = await createServer(makeEnv());
     // "sample" exists only in frontmatter tags + body, never in path
     const result = await server.callTool("wiki_search", { query: "sample", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
-    const paths = parsed.map((p) => p.path);
+    const parsed = JSON.parse(result.content[0].text) as Array<{ p: string }>;
+    const paths = parsed.map((p) => p.p);
     expect(paths).toContain("personal/wiki/entities/Foo.md");
   });
 
@@ -55,8 +60,8 @@ describe("MCP tools", () => {
     const server = await createServer(makeEnv());
     // Foo.md frontmatter declares aliases: [Fooable]
     const result = await server.callTool("wiki_search", { query: "Fooable", limit: 5 });
-    const parsed = JSON.parse(result.content[0].text) as Array<{ path: string }>;
-    const paths = parsed.map((p) => p.path);
+    const parsed = JSON.parse(result.content[0].text) as Array<{ p: string }>;
+    const paths = parsed.map((p) => p.p);
     expect(paths).toContain("personal/wiki/entities/Foo.md");
   });
 
@@ -65,35 +70,40 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed[0].path).toBe("personal/wiki/entities/Foo.md");
-    expect(parsed[0].content).toContain("Foo");
-    expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
+    const rows = JSON.parse(result.content[0].text);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toHaveProperty("p");
+    expect(rows[0]).toHaveProperty("c");
+    expect(rows[0]).toHaveProperty("fm");
   });
 
   it("wiki_list returns discovered types in paginated envelope", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { domain: "personal", type: "entities" });
-    const parsed = JSON.parse(result.content[0].text) as {
-      items: Array<{ path: string; title: string }>;
-      total: number;
-      offset: number;
-      limit: number;
-      truncated: boolean;
-    };
-    expect(parsed).toHaveProperty("total");
-    expect(parsed).toHaveProperty("offset", 0);
-    expect(parsed).toHaveProperty("limit");
-    expect(parsed).toHaveProperty("truncated");
-    expect(parsed.items[0]).toHaveProperty("path", "personal/wiki/entities/Foo.md");
-    expect(parsed.items[0]).toHaveProperty("title");
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload).toHaveProperty("g");
+    expect(payload).toHaveProperty("tot");
+    expect(payload).toHaveProperty("off");
+    expect(payload).toHaveProperty("lim");
+    expect(payload).toHaveProperty("tr");
+    expect(Object.keys(payload.g).length).toBeGreaterThan(0);
   });
 
   it("wiki_list filters by frontmatter tag", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "sample" });
-    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
-    const paths = parsed.items.map((p) => p.path).sort();
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, Array<{ p: string }>>>;
+      tot: number;
+    };
+    // Collect all paths from grouped structure
+    const paths: string[] = [];
+    for (const domain of Object.values(payload.g)) {
+      for (const rows of Object.values(domain)) {
+        for (const row of rows) paths.push(row.p);
+      }
+    }
+    paths.sort();
     // Foo + bar-baz both carry tags: [sample]
     expect(paths).toEqual(["personal/wiki/concepts/bar-baz.md", "personal/wiki/entities/Foo.md"]);
   });
@@ -102,41 +112,50 @@ describe("MCP tools", () => {
     const server = await createServer(makeEnv());
     // Tag is "sample" in fixtures; query upper-cased should still match.
     const result = await server.callTool("wiki_list", { tag: "SAMPLE" });
-    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
-    expect(parsed.items.length).toBeGreaterThan(0);
+    const payload = JSON.parse(result.content[0].text) as { tot: number };
+    expect(payload.tot).toBeGreaterThan(0);
   });
 
   it("wiki_list domain='all' is equivalent to omitted domain", async () => {
     const server = await createServer(makeEnv());
     const a = JSON.parse(
       (await server.callTool("wiki_list", { domain: "all" })).content[0].text,
-    ) as { total: number };
+    ) as { tot: number; g: Record<string, Record<string, unknown[]>> };
     const b = JSON.parse((await server.callTool("wiki_list", {})).content[0].text) as {
-      total: number;
+      tot: number;
+      g: Record<string, Record<string, unknown[]>>;
     };
-    expect(a.total).toBe(b.total);
-    expect(a.total).toBeGreaterThan(0);
+    expect(a.tot).toBe(b.tot);
+    expect(a.tot).toBeGreaterThan(0);
   });
 
   it("wiki_list applies limit + offset and reports truncated flag", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { limit: 1, offset: 0 });
-    const parsed = JSON.parse(result.content[0].text) as {
-      items: unknown[];
-      total: number;
-      truncated: boolean;
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, unknown[]>>;
+      tot: number;
+      tr: boolean;
     };
-    expect(parsed.items).toHaveLength(1);
-    expect(parsed.total).toBeGreaterThan(1);
-    expect(parsed.truncated).toBe(true);
+    // Sum row counts across all domain→type buckets
+    let paged = 0;
+    for (const domain of Object.values(payload.g)) {
+      for (const rows of Object.values(domain)) paged += rows.length;
+    }
+    expect(paged).toBe(1);
+    expect(payload.tot).toBeGreaterThan(1);
+    expect(payload.tr).toBe(true);
   });
 
   it("wiki_list with unknown tag returns empty items array", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "no-such-tag" });
-    const parsed = JSON.parse(result.content[0].text) as { items: unknown[]; total: number };
-    expect(parsed.items).toEqual([]);
-    expect(parsed.total).toBe(0);
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, unknown[]>>;
+      tot: number;
+    };
+    expect(payload.tot).toBe(0);
+    expect(Object.keys(payload.g).length).toBe(0);
   });
 
   it("wiki_fetch rejects more than 20 paths with isError", async () => {
@@ -151,13 +170,13 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text) as Array<{
-      path: string;
-      frontmatter: Record<string, unknown>;
+    const rows = JSON.parse(result.content[0].text) as Array<{
+      p: string;
+      fm: Record<string, unknown>;
     }>;
-    expect(parsed[0].frontmatter).not.toHaveProperty("kind");
-    expect(parsed[0].frontmatter).not.toHaveProperty("first_seen");
-    expect(parsed[0].frontmatter).toHaveProperty("type", "entity");
+    expect(rows[0].fm).not.toHaveProperty("kind");
+    expect(rows[0].fm).not.toHaveProperty("first_seen");
+    expect(rows[0].fm).toHaveProperty("type", "entity");
   });
 
   it("wiki_fetch rejects paths not in snapshot per-path", async () => {
@@ -165,16 +184,18 @@ describe("MCP tools", () => {
     const result = await server.callTool("wiki_fetch", {
       paths: ["secret/file.md", "personal/wiki/entities/Foo.md"],
     });
-    const parsed = JSON.parse(result.content[0].text) as Array<{
-      path: string;
-      content: string;
-      error?: string;
+    const rows = JSON.parse(result.content[0].text) as Array<{
+      p: string;
+      c?: string;
+      fm?: Record<string, unknown>;
+      err?: string;
     }>;
-    const known = parsed.find((p) => p.path === "personal/wiki/entities/Foo.md");
-    const unknown = parsed.find((p) => p.path === "secret/file.md");
-    expect(known?.content).not.toBe("");
-    expect(unknown?.content).toBe("");
-    expect(unknown?.error).toMatch(/not in snapshot/);
+    const known = rows.find((r) => r.p === "personal/wiki/entities/Foo.md");
+    const unknown = rows.find((r) => r.p === "secret/file.md");
+    expect(known?.c).not.toBe("");
+    expect(unknown?.err).toMatch(/not in snapshot/);
+    expect(unknown).not.toHaveProperty("c");
+    expect(unknown).not.toHaveProperty("fm");
   });
 
   it("wiki_upload rejects unknown domain", async () => {
