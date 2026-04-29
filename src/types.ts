@@ -53,21 +53,6 @@ export type FetchRow =
   | { p: string; c: string; fm: Record<string, unknown> }
   | { p: string; err: string };
 
-export type WikiListItem = {
-  path: string;
-  title: string;
-  type: string;
-  domain: string;
-};
-
-export type WikiListResult = {
-  items: WikiListItem[];
-  total: number;
-  offset: number;
-  limit: number;
-  truncated: boolean;
-};
-
 export type GithubTreeEntry = {
   path: string;
   mode: string;

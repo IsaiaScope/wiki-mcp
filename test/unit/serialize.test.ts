@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderContextMarkdown, renderSearchJSON } from "../../src/mcp/serialize";
+import { renderContextMarkdown, renderListJSON, renderSearchJSON } from "../../src/mcp/serialize";
 import type { Bundle, SearchRow } from "../../src/types";
 
 describe("renderContextMarkdown", () => {
@@ -44,6 +44,22 @@ describe("renderContextMarkdown", () => {
     const out = renderContextMarkdown({ hits: [], citation_instructions: "ci" });
     expect(out).toContain("# wiki_context");
     expect(out).toContain("[cite] ci");
+  });
+});
+
+describe("renderListJSON", () => {
+  it("emits grouped domain→type structure with terse meta keys", () => {
+    const grouped = {
+      personal: { concepts: [{ p: "personal/wiki/concepts/foo.md", t: "Foo" }] },
+    };
+    const out = renderListJSON({ g: grouped, tot: 1, off: 0, lim: 200, tr: false });
+    expect(JSON.parse(out)).toEqual({
+      g: { personal: { concepts: [{ p: "personal/wiki/concepts/foo.md", t: "Foo" }] } },
+      tot: 1,
+      off: 0,
+      lim: 200,
+      tr: false,
+    });
   });
 });
 

@@ -1,4 +1,4 @@
-import type { Bundle, SearchRow } from "../types";
+import type { Bundle, ListGrouped, SearchRow } from "../types";
 
 export function renderContextMarkdown(bundle: Bundle): string {
   const parts: string[] = ["# wiki_context", ""];
@@ -11,6 +11,10 @@ export function renderContextMarkdown(bundle: Bundle): string {
   }
   parts.push(`[cite] ${bundle.citation_instructions}`);
   return parts.join("\n");
+}
+
+export function renderListJSON(payload: ListGrouped): string {
+  return JSON.stringify(payload);
 }
 
 export function renderSearchJSON(rows: SearchRow[]): string {

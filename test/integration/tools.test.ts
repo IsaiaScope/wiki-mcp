@@ -79,26 +79,30 @@ describe("MCP tools", () => {
   it("wiki_list returns discovered types in paginated envelope", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { domain: "personal", type: "entities" });
-    const parsed = JSON.parse(result.content[0].text) as {
-      items: Array<{ path: string; title: string }>;
-      total: number;
-      offset: number;
-      limit: number;
-      truncated: boolean;
-    };
-    expect(parsed).toHaveProperty("total");
-    expect(parsed).toHaveProperty("offset", 0);
-    expect(parsed).toHaveProperty("limit");
-    expect(parsed).toHaveProperty("truncated");
-    expect(parsed.items[0]).toHaveProperty("path", "personal/wiki/entities/Foo.md");
-    expect(parsed.items[0]).toHaveProperty("title");
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload).toHaveProperty("g");
+    expect(payload).toHaveProperty("tot");
+    expect(payload).toHaveProperty("off");
+    expect(payload).toHaveProperty("lim");
+    expect(payload).toHaveProperty("tr");
+    expect(Object.keys(payload.g).length).toBeGreaterThan(0);
   });
 
   it("wiki_list filters by frontmatter tag", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "sample" });
-    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
-    const paths = parsed.items.map((p) => p.path).sort();
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, Array<{ p: string }>>>;
+      tot: number;
+    };
+    // Collect all paths from grouped structure
+    const paths: string[] = [];
+    for (const domain of Object.values(payload.g)) {
+      for (const rows of Object.values(domain)) {
+        for (const row of rows) paths.push(row.p);
+      }
+    }
+    paths.sort();
     // Foo + bar-baz both carry tags: [sample]
     expect(paths).toEqual(["personal/wiki/concepts/bar-baz.md", "personal/wiki/entities/Foo.md"]);
   });
@@ -107,41 +111,50 @@ describe("MCP tools", () => {
     const server = await createServer(makeEnv());
     // Tag is "sample" in fixtures; query upper-cased should still match.
     const result = await server.callTool("wiki_list", { tag: "SAMPLE" });
-    const parsed = JSON.parse(result.content[0].text) as { items: Array<{ path: string }> };
-    expect(parsed.items.length).toBeGreaterThan(0);
+    const payload = JSON.parse(result.content[0].text) as { tot: number };
+    expect(payload.tot).toBeGreaterThan(0);
   });
 
   it("wiki_list domain='all' is equivalent to omitted domain", async () => {
     const server = await createServer(makeEnv());
     const a = JSON.parse(
       (await server.callTool("wiki_list", { domain: "all" })).content[0].text,
-    ) as { total: number };
+    ) as { tot: number; g: Record<string, Record<string, unknown[]>> };
     const b = JSON.parse((await server.callTool("wiki_list", {})).content[0].text) as {
-      total: number;
+      tot: number;
+      g: Record<string, Record<string, unknown[]>>;
     };
-    expect(a.total).toBe(b.total);
-    expect(a.total).toBeGreaterThan(0);
+    expect(a.tot).toBe(b.tot);
+    expect(a.tot).toBeGreaterThan(0);
   });
 
   it("wiki_list applies limit + offset and reports truncated flag", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { limit: 1, offset: 0 });
-    const parsed = JSON.parse(result.content[0].text) as {
-      items: unknown[];
-      total: number;
-      truncated: boolean;
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, unknown[]>>;
+      tot: number;
+      tr: boolean;
     };
-    expect(parsed.items).toHaveLength(1);
-    expect(parsed.total).toBeGreaterThan(1);
-    expect(parsed.truncated).toBe(true);
+    // Sum row counts across all domain→type buckets
+    let paged = 0;
+    for (const domain of Object.values(payload.g)) {
+      for (const rows of Object.values(domain)) paged += rows.length;
+    }
+    expect(paged).toBe(1);
+    expect(payload.tot).toBeGreaterThan(1);
+    expect(payload.tr).toBe(true);
   });
 
   it("wiki_list with unknown tag returns empty items array", async () => {
     const server = await createServer(makeEnv());
     const result = await server.callTool("wiki_list", { tag: "no-such-tag" });
-    const parsed = JSON.parse(result.content[0].text) as { items: unknown[]; total: number };
-    expect(parsed.items).toEqual([]);
-    expect(parsed.total).toBe(0);
+    const payload = JSON.parse(result.content[0].text) as {
+      g: Record<string, Record<string, unknown[]>>;
+      tot: number;
+    };
+    expect(payload.tot).toBe(0);
+    expect(Object.keys(payload.g).length).toBe(0);
   });
 
   it("wiki_fetch rejects more than 20 paths with isError", async () => {

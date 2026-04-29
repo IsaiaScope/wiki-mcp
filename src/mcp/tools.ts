@@ -5,7 +5,7 @@ import type { GithubClient } from "../github";
 import { readRawFile } from "../raw";
 import { buildContext, pageRankDoc, rankDocs } from "../search";
 import { knownPathsOf } from "../snapshot-cache";
-import type { PrimeBundle, SearchRow, Snapshot, WikiListResult } from "../types";
+import type { ListGrouped, PrimeBundle, SearchRow, Snapshot } from "../types";
 import { uploadFile } from "../upload";
 import {
   arrayIncludesIgnoreCase,
@@ -15,7 +15,7 @@ import {
   toStringArray,
 } from "../util";
 import { parseFrontmatter } from "../wiki";
-import { renderContextMarkdown, renderSearchJSON } from "./serialize";
+import { renderContextMarkdown, renderListJSON, renderSearchJSON } from "./serialize";
 
 export type ToolContext = {
   env: Env;
@@ -324,14 +324,14 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
   if (!parsed.success) return errorResult(parsed.error.message);
   try {
     const snap = await ctx.getSnapshot();
-    const items: WikiListResult["items"] = [];
+    const flat: Array<{ p: string; t: string; type: string; domain: string }> = [];
     for (const [name, dom] of snap.domains) {
       if (!isAllDomain(parsed.data.domain) && !eqIgnoreCase(parsed.data.domain!, name)) continue;
       for (const [t, paths] of dom.wikiTypes) {
         if (parsed.data.type && !eqIgnoreCase(parsed.data.type, t)) continue;
         for (const p of paths) {
           const title = (p.split("/").pop() ?? p).replace(/\.md$/, "");
-          items.push({ path: p, title, type: t, domain: name });
+          flat.push({ p, t: title, type: t, domain: name });
         }
       }
     }
@@ -342,35 +342,41 @@ async function wikiListHandler(raw: unknown, ctx: ToolContext): Promise<ToolResu
       concept: parsed.data.concept,
     };
     const needsFrontmatter = !!(filters.tag || filters.entity || filters.concept);
-    let result = items;
+    let rows = flat;
     if (needsFrontmatter) {
-      // Body fetches are bounded by the structural pre-filter (domain/type)
-      // above; LRU dedupes across calls.
       const fmByPath = new Map<string, Record<string, unknown>>();
       await Promise.all(
-        items.map(async (it) => {
+        flat.map(async (it) => {
           try {
-            const body = await ctx.github.fetchBody(snap.sha, it.path);
-            fmByPath.set(it.path, parseFrontmatter(body, { pathHint: it.path }).data);
+            const body = await ctx.github.fetchBody(snap.sha, it.p);
+            fmByPath.set(it.p, parseFrontmatter(body, { pathHint: it.p }).data);
           } catch {
-            fmByPath.set(it.path, {});
+            fmByPath.set(it.p, {});
           }
         }),
       );
-      result = items.filter((it) => matchesFilters(fmByPath.get(it.path) ?? {}, filters));
+      rows = flat.filter((it) => matchesFilters(fmByPath.get(it.p) ?? {}, filters));
     }
 
     const offset = Math.max(0, parsed.data.offset);
     const limit = Math.max(1, parsed.data.limit);
-    const paged = result.slice(offset, offset + limit);
-    const payload: WikiListResult = {
-      items: paged,
-      total: result.length,
-      offset,
-      limit,
-      truncated: result.length > offset + limit,
+    const paged = rows.slice(offset, offset + limit);
+
+    const grouped: ListGrouped["g"] = {};
+    for (const row of paged) {
+      if (!grouped[row.domain]) grouped[row.domain] = {};
+      if (!grouped[row.domain][row.type]) grouped[row.domain][row.type] = [];
+      grouped[row.domain][row.type].push({ p: row.p, t: row.t });
+    }
+
+    const payload: ListGrouped = {
+      g: grouped,
+      tot: rows.length,
+      off: offset,
+      lim: limit,
+      tr: rows.length > offset + limit,
     };
-    return { content: [{ type: "text", text: JSON.stringify(payload) }] };
+    return { content: [{ type: "text", text: renderListJSON(payload) }] };
   } catch (e) {
     return errorResult((e as Error).message);
   }
